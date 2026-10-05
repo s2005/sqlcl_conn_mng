@@ -1,0 +1,12 @@
+{
+  // Rule configuration lives in .markdownlint.json so editors pick it up too.
+  // MD013 (line length) is the only relaxation; it is also disabled here.
+  "gitignore": true,
+  "ignores": [
+    ".venv/**",
+    "node_modules/**"
+  ],
+  "config": {
+    "MD013": false
+  }
+}

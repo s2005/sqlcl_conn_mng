@@ -1,0 +1,80 @@
+"""Tests for the read-only connection store."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from sqlcl_conn_mng.store import ConnectionStore, StoreError, resolve_home
+from tests.conftest import ID_DEV, ID_PROD, ID_ROOT
+
+
+@pytest.mark.unit
+def test_lists_connections_sorted_with_folders(fake_home: Path) -> None:
+    conns = ConnectionStore(fake_home).connections()
+    assert [c.name for c in conns] == ["Prod One", "dev_local", "root_conn"]
+    by_name = {c.name: c for c in conns}
+    assert by_name["dev_local"].folder == "/dev/local"
+    assert by_name["dev_local"].connect_string == "//localhost:1521/freepdb1"
+    assert by_name["dev_local"].extra == {"extraKey": "extraValue"}
+    assert by_name["root_conn"].folder == "/"
+    assert by_name["Prod One"].folder == "/prod"
+
+
+@pytest.mark.unit
+def test_get_is_case_sensitive_and_by_name_not_dir(fake_home: Path) -> None:
+    store = ConnectionStore(fake_home)
+    found = store.get("dev_local")
+    assert found is not None
+    assert found.id == ID_DEV
+    assert store.get("DEV_LOCAL") is None
+    assert store.get(ID_DEV) is None
+
+
+@pytest.mark.unit
+def test_folder_tree_and_paths(fake_home: Path) -> None:
+    store = ConnectionStore(fake_home)
+    folders = store.folders()
+    assert [f.path for f in folders] == ["/dev", "/prod"]
+    assert folders[0].folders[0].path == "/dev/local"
+    assert store.folder_paths() == {ID_DEV: "/dev/local", ID_PROD: "/prod"}
+    assert ID_ROOT not in store.folder_paths()
+
+
+@pytest.mark.unit
+def test_has_wallet_checks_existence_only(fake_home: Path) -> None:
+    store = ConnectionStore(fake_home)
+    assert store.has_wallet(ID_DEV)
+    (fake_home / "connections" / ID_DEV / "credentials.sso").unlink()
+    assert not store.has_wallet(ID_DEV)
+
+
+@pytest.mark.unit
+def test_missing_store_and_missing_folders_file(tmp_path: Path) -> None:
+    store = ConnectionStore(tmp_path / "nothing")
+    assert store.connections() == []
+    assert store.folders() == []
+
+
+@pytest.mark.unit
+def test_non_id_directories_are_ignored(fake_home: Path) -> None:
+    (fake_home / "connections" / "short").mkdir()
+    (fake_home / "connections" / "short" / "dbtools.properties").write_text("name=x\n")
+    assert len(ConnectionStore(fake_home).connections()) == 3
+
+
+@pytest.mark.unit
+def test_malformed_folders_json(fake_home: Path) -> None:
+    (fake_home / "connection_folders" / "folders.json").write_text("{nope", encoding="utf-8")
+    with pytest.raises(StoreError):
+        ConnectionStore(fake_home).folders()
+
+
+@pytest.mark.unit
+def test_resolve_home_precedence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    env = {"SQLCL_CONN_HOME": str(tmp_path / "env")}
+    assert resolve_home(str(tmp_path / "opt"), env) == tmp_path / "opt"
+    assert resolve_home(None, env) == tmp_path / "env"
+    monkeypatch.chdir(tmp_path)
+    assert resolve_home(None, {}) == tmp_path / ".sqlcl"
