@@ -95,8 +95,8 @@ Requirements: REQ-11, REQ-10
 - [x] Add the Linux-only password generation with `::add-mask::`, `make db-start` and the `always()` `make db-stop`
 - [x] Add `make integration` for both runners
 - [x] Confirm the workflow repeats no command, version or container setting (`grep` for the version, image, service, port, user, tool names, cache and bin paths: no match). `DB_IMAGE` is now the fully qualified `docker.io/gvenzl/oracle-xe:21-slim`, the same image, because rootless Podman refuses an ambiguous short name when it cannot prompt
-- [~] Push, watch the run, and confirm both jobs, database pass on Ubuntu, skip on Windows, masked password, cache hit on rerun
-- [~] Commit
+- [x] Push, watch the run, and confirm both jobs, database pass on Ubuntu, skip on Windows, masked password, cache hit on rerun. Run 37806614220 failed on Ubuntu only: 7 non-ASCII cases, the Linux stdin-encoding mismatch (`notes.md`, D6). Run 37807487224 is green: Ubuntu `143 passed, 8 xfailed` with the database scenarios run, Windows `128 passed, 23 skipped` with every database scenario skipped and `SQLCL_ITEST_PASSWORD` named; the password shows only as `***`. Its rerun restored SQLcl from the cache on both runners (`sqlcl-Linux-...`, `sqlcl-Windows-...`). Podman worked on `ubuntu-latest`, so `ENGINE=docker` was not needed
+- [x] Commit
 
 ## Phase 7: Documentation and Final Verification
 
