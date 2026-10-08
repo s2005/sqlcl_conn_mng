@@ -38,17 +38,17 @@ Requirements: REQ-1, REQ-9
 
 Requirements: REQ-5
 
-- [ ] Inventory every `connmgr` subcommand and flag; mark the store-writing ones
-- [ ] Capture `connect -save` with and without `-savepwd`, and with `-replace`
-- [ ] Capture `connmgr add -folder`, top-level and nested
-- [ ] Capture `connmgr delete -conn`, `rename -conn` and `move -conn`
-- [ ] Capture `connmgr clone` plain, with `-username` and with `-nopwd`
-- [ ] Capture `connmgr delete -folder` empty, non-empty without `-force`, and with `-force`
-- [ ] Capture any further writing subcommand found by the inventory
-- [ ] Record validation rules and exact success and failure output
-- [ ] Check atomicity: temporary files, lock files, concurrent writers
-- [ ] Write the "Operation effect map" section of `findings.md`
-- [ ] Phase 2 verification passes
+- [x] Inventory every `connmgr` subcommand and flag; mark the store-writing ones
+- [x] Capture `connect -save` with and without `-savepwd`, and with `-replace`
+- [x] Capture `connmgr add -folder`, top-level and nested
+- [x] Capture `connmgr delete -conn`, `rename -conn` and `move -conn`
+- [x] Capture `connmgr clone` plain, with `-username` and with `-nopwd`
+- [x] Capture `connmgr delete -folder` empty, non-empty without `-force`, and with `-force`
+- [x] Capture any further writing subcommand found by the inventory
+- [x] Record validation rules and exact success and failure output
+- [x] Check atomicity: temporary files, lock files, concurrent writers
+- [x] Write the "Operation effect map" section of `findings.md`
+- [x] Phase 2 verification passes
 
 ## Phase 3: Connection Id Rule
 
