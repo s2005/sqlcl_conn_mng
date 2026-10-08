@@ -41,13 +41,13 @@ Requirements: REQ-1, REQ-8, REQ-10
 
 Requirements: REQ-2, REQ-3
 
-- [ ] Build the SQLcl folder stores (tree build, deletes)
-- [ ] Assert `folders` and `list --folder` against the expected trees
-- [ ] Assert the tool's `add-folder`, `move`, `delete-folder` and `delete-folder --force --yes` on a copied store
-- [ ] Build the import store with `RENAME` and `REPLACE` duplicates
-- [ ] Assert imported values in `list`, `show --check-password` and `export`
-- [ ] Record the follow-up "present the connect string of `ORACLE_BASIC` connections" under Follow-Ups
-- [ ] Verify Phase 2 and commit
+- [x] Build the SQLcl folder stores (tree build, deletes) as session-scoped fixtures in `conftest.py` (`notes.md`, D4)
+- [x] Assert `folders` and `list --folder` against the expected trees
+- [x] Assert the tool's `add-folder`, `move`, `delete-folder` and `delete-folder --force --yes` on a copied store
+- [x] Build the import store with `RENAME` and `REPLACE` duplicates
+- [x] Assert imported values in `list`, `show --check-password` and `export`
+- [x] Record the follow-up "present the connect string of `ORACLE_BASIC` connections" under Follow-Ups
+- [x] Verify Phase 2 and commit
 
 ## Phase 3: Connection Operations and Edge-Case Values
 
@@ -113,4 +113,4 @@ Requirements: REQ-9, REQ-8
 
 Defects and gaps found by the tests are listed here with their follow-up task (`open_questions.md`, Q6).
 
-- (none yet)
+- **Connect string of imported connections** (`open_questions.md`, Q6). `connmgr import` writes `ORACLE_BASIC` connections with `host`, `port` and `serviceName` and no `connectionString`, so the tool reports an empty `connect_string` and the three values in `extra` (`tests/integration/test_import_compat.py`). No value is lost, but how the tool should present the connect string of such a connection is undecided. Follow-up task: `oracle_basic_connect_string`.

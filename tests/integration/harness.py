@@ -132,6 +132,26 @@ def copy_store(store: Path, dest_root: Path) -> Path:
     return Path(shutil.copytree(store, dest_root / f"{store.name}_copy"))
 
 
+def raw_folders(snap: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the parsed connection_folders/folders.json of a snapshot."""
+    raw: dict[str, Any] = snap["files"]["connection_folders/folders.json"]["json"]
+    return raw
+
+
+def raw_folder_ids(raw: Mapping[str, Any]) -> dict[str, list[str]]:
+    """Flatten a raw folders.json dict into {folder path: [connection ids]}."""
+    flat: dict[str, list[str]] = {}
+
+    def walk(nodes: Sequence[Mapping[str, Any]], parent: str) -> None:
+        for item in nodes:
+            path = f"{parent}/{item['name']}"
+            flat[path] = list(item.get("connections", []))
+            walk(item.get("folders", []), path)
+
+    walk(raw.get("folders", []), "")
+    return flat
+
+
 def assert_no_password(password: str, *texts: str) -> None:
     """Fail without echoing anything when the password occurs in any text."""
     if not password:

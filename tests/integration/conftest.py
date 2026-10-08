@@ -10,7 +10,15 @@ from pathlib import Path
 import pytest
 
 from tests.integration import harness
-from tests.integration.harness import BuiltStore, CliResult, DbSettings, Step
+from tests.integration.harness import (
+    IMPORT_FIXTURE,
+    IMPORT_NAMES,
+    BuiltStore,
+    CliResult,
+    DbSettings,
+    Step,
+    import_step,
+)
 
 
 @pytest.fixture(scope="session")
@@ -67,3 +75,78 @@ def db_settings() -> DbSettings:
     if isinstance(result, list):
         pytest.skip(f"database scenarios need {', '.join(result)}")
     return result
+
+
+@pytest.fixture(scope="session")
+def folder_store(build_store: Callable[..., BuiltStore]) -> BuiltStore:
+    """Build a store through folder add, move and rename; snapshots hold each stage.
+
+    Stage 1 imports imp1..imp3 at the root. Stage 2 adds /team/a/b. Stage 3 adds
+    /ops and /empty and moves imp1 to /team/a/b, imp2 and imp3 to /ops. Stage 4
+    moves imp3 back to /, renames /ops to ops2 and moves /team/a/b under /empty.
+    Final tree: /empty/b holds imp1, /ops2 holds imp2, /team/a is empty, imp3 is
+    at the root.
+    """
+    stages: list[list[Step]] = [
+        [import_step()],
+        [("connmgr add -folder /team/a/b", "Folder /team/a/b has been added")],
+        [
+            ("connmgr add -folder /ops", "Folder /ops has been added"),
+            ("connmgr add -folder /empty", "Folder /empty has been added"),
+            ("connmgr move -conn imp1 /team/a/b", "Connection imp1 has been moved to /team/a/b"),
+            ("connmgr move -conn imp2 /ops", "Connection imp2 has been moved to /ops"),
+            ("connmgr move -conn imp3 /ops", "Connection imp3 has been moved to /ops"),
+        ],
+        [
+            ("connmgr move -conn imp3 /", "Connection imp3 has been moved to /"),
+            ("connmgr rename -folder /ops ops2", "Folder /ops has been renamed"),
+            (
+                "connmgr move -folder /team/a/b /empty",
+                "Folder /team/a/b has been moved to /empty",
+            ),
+        ],
+    ]
+    return build_store("folders", stages)
+
+
+@pytest.fixture(scope="session")
+def folder_delete_store(build_store: Callable[..., BuiltStore]) -> BuiltStore:
+    """Build a store through folder deletes; snapshots hold each stage.
+
+    Stage 1 imports imp1..imp3, adds /keep_empty, /x and /last, and moves imp1
+    to /x. Stage 2 deletes the empty /keep_empty. Stage 3 force-deletes /x with
+    imp1 in it. Stage 4 deletes /last, leaving no folders.
+    """
+    stages: list[list[Step]] = [
+        [
+            import_step(),
+            ("connmgr add -folder /keep_empty", "Folder /keep_empty has been added"),
+            ("connmgr add -folder /x", "Folder /x has been added"),
+            ("connmgr add -folder /last", "Folder /last has been added"),
+            ("connmgr move -conn imp1 /x", "Connection imp1 has been moved to /x"),
+        ],
+        [("connmgr delete -folder /keep_empty", "Folder /keep_empty has been deleted")],
+        [("connmgr delete -folder /x -force", "Folder /x has been deleted")],
+        [("connmgr delete -folder /last", "Folder /last has been deleted")],
+    ]
+    return build_store("folder_deletes", stages)
+
+
+@pytest.fixture(scope="session")
+def import_store(build_store: Callable[..., BuiltStore]) -> BuiltStore:
+    """Build a store through import and re-imports; snapshots hold each stage.
+
+    Stage 1 imports imp1..imp3. Stage 2 re-imports with -duplicates RENAME
+    (adds imp1_1, imp2_1, imp3_1). Stage 3 re-imports with -duplicates REPLACE.
+    """
+    path = IMPORT_FIXTURE.as_posix()
+
+    def lines(suffix: str) -> tuple[str, ...]:
+        return tuple(f"Importing connection {n}{suffix}: Success" for n in IMPORT_NAMES)
+
+    stages: list[list[Step]] = [
+        [import_step()],
+        [(f'connmgr import -duplicates RENAME "{path}"', lines("_1"))],
+        [(f'connmgr import -duplicates REPLACE "{path}"', lines(""))],
+    ]
+    return build_store("imports", stages)
