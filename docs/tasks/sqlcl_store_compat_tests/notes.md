@@ -41,6 +41,7 @@ Found in Phase 6, by the first CI run (run 37806614220).
 - Spec: `PRD.md`, REQ-5, `implementation_plan.md`, Phase 3, and `open_questions.md`, Q12, expect non-ASCII values to fail on Windows and pass on Linux, so the strict `xfail` carries `condition=sys.platform == "win32"`.
 - Code: `SqlclRunner.run` (`src/sqlcl_conn_mng/sqlcl.py:123-130`) writes stdin with `text=True`, so in the locale encoding. On the Windows machine and runner that is cp1252, which matches SQLcl's decoding, so every non-ASCII case passed. On `ubuntu-latest` it is UTF-8, and SQLcl stored `cafÃƒÂ©1` as `cafÃƒƒÂÂ©1`: the UTF-8 bytes decoded as a single-byte code page. Seven cases failed there: the two non-ASCII edge names in `list`/`show`, their raw `name=` lines and raw bytes, and the tool-made `cafÃƒÂ©2` clone.
 - Difference: the defect `sqlcl_stdin_encoding` exists, but on the other platform.
+- Re-check: in a local Linux container (`eclipse-temurin:17-jre`, same SQLcl build) SQLcl decoded stdin as ISO-8859-1 under `LANG=C.UTF-8`, an unset `LANG` and `-Dstdin.encoding=UTF-8` alike (`0xE9` stored as `Ã©`, `0x80` as U+0080, UTF-8 `Ã©` as `ÃƒÂ©`). Details in `progress.md`, "Follow-Ups".
 
 ## Candidate Solutions
 
