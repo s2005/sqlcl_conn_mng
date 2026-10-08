@@ -1,0 +1,120 @@
+# Progress: Investigate SQLcl Store Writes for SQLcl-Free Catalog Management
+
+## Status Legend
+
+| Marker | Meaning |
+| ------ | ------- |
+| `[ ]` | Not started |
+| `[x]` | Complete |
+| `[~]` | In progress |
+| `[!]` | Blocked or needs decision |
+| `[-]` | Skipped / not applicable |
+
+## Planning Checklist
+
+- [x] Analyze current behavior.
+- [x] Create open_questions.md and settle every entry (Q1-Q4 on recommended defaults; revisit before Phase 1 if the user disagrees)
+- [x] Create analysis.md
+- [x] Create PRD.md
+- [x] Create implementation_plan.md
+- [x] Create verification.md
+- [x] Create progress.md
+
+## Phase 1: Probe Harness and Scratch Environment
+
+Requirements: REQ-1, REQ-9
+
+- [x] Run the pre-implementation baseline from `verification.md`
+- [x] Create `scripts/store_probe.py` with `--command snapshot` and `--command diff`, named options only
+- [x] Record wallet files and password-named keys as size and hash prefix only
+- [x] Create `tests/test_store_probe.py`, including the no-secret-output test
+- [x] Create the scratch layout: `stores/`, `snapshots/`, `javap/`
+- [x] Start the podman Oracle container and create the dummy schema
+- [x] Dump `javap` signatures and constant-pool strings for the classes of interest into `<scratch-root>/javap/`
+- [x] Start `findings.md` with the environment section and evidence-tag legend
+- [x] Phase 1 verification passes
+
+## Phase 2: Operation Inventory and Black-Box Capture
+
+Requirements: REQ-5
+
+- [ ] Inventory every `connmgr` subcommand and flag; mark the store-writing ones
+- [ ] Capture `connect -save` with and without `-savepwd`, and with `-replace`
+- [ ] Capture `connmgr add -folder`, top-level and nested
+- [ ] Capture `connmgr delete -conn`, `rename -conn` and `move -conn`
+- [ ] Capture `connmgr clone` plain, with `-username` and with `-nopwd`
+- [ ] Capture `connmgr delete -folder` empty, non-empty without `-force`, and with `-force`
+- [ ] Capture any further writing subcommand found by the inventory
+- [ ] Record validation rules and exact success and failure output
+- [ ] Check atomicity: temporary files, lock files, concurrent writers
+- [ ] Write the "Operation effect map" section of `findings.md`
+- [ ] Phase 2 verification passes
+
+## Phase 3: Connection Id Rule
+
+Requirements: REQ-2
+
+- [ ] Decode the collected ids and check the UUID hypothesis
+- [ ] Check `javap` evidence for UUID or Base64 use
+- [ ] Record the effect of `rename`, `move` and `clone` on the id
+- [ ] Round trip with a Python-generated id, and with a rule-breaking id
+- [ ] Write the "Connection id" section of `findings.md`
+- [ ] Phase 3 verification passes
+
+## Phase 4: dbtools.properties Write Format
+
+Requirements: REQ-3
+
+- [ ] Record key set, order, header, line endings, trailing newline and encoding
+- [ ] Record escaping for special and non-ASCII characters
+- [ ] Record the writer in use and the JRE
+- [ ] Round trip a Python-written file and byte-compare it
+- [ ] Probe SQLcl tolerance: no header, reordered keys, LF versus CRLF, unknown key
+- [ ] Write the "dbtools.properties" section of `findings.md`
+- [ ] Phase 4 verification passes
+
+## Phase 5: folders.json Write Format
+
+Requirements: REQ-4
+
+- [ ] Record shape, keys, ordering, indentation, encoding and absent-file behaviour
+- [ ] Probe tolerance: dangling id, duplicate id, empty versus missing `connections`, unknown keys, compact JSON
+- [ ] Record the serializer in use
+- [ ] Round trip a Python-written nested tree and byte-compare it
+- [ ] Write the "folders.json" section of `findings.md`
+- [ ] Phase 5 verification passes
+
+## Phase 6: credentials.sso Wallet Discovery and POC
+
+Requirements: REQ-6
+
+- [ ] Compare wallet sizes and hashes across the Phase 2 cases
+- [ ] Record secret aliases, algorithm names and format constants from `javap`
+- [ ] Build the structure analyser in `<scratch-root>/poc/` (offsets, lengths, names only)
+- [ ] Map the wallet layout
+- [ ] POC: Python-written empty wallet accepted by SQLcl
+- [ ] POC: Python-written wallet with the dummy password accepted by SQLcl
+- [ ] Apply the escalation gate if the layout cannot be mapped clean-room
+- [ ] Write the "credentials.sso" section of `findings.md` with the verdict
+- [ ] Phase 6 verification passes
+
+## Phase 7: Runtime Comparison
+
+Requirements: REQ-7
+
+- [ ] Cost the pure-Python runtime
+- [ ] Cost the Python + JRE + Maven Central `oraclepki` runtime
+- [ ] Prove the JRE call sequence hands-on if Phase 6 was blocked
+- [ ] Write the "Runtime comparison" section of `findings.md` with one recommendation
+- [ ] Phase 7 verification passes
+
+## Phase 8: Synthesis and Follow-Up Task Outline
+
+Requirements: REQ-8, REQ-9
+
+- [ ] Review `findings.md`: every claim tagged, contradictions resolved
+- [ ] Write the "Follow-up" section with a verdict per command and the follow-up task(s)
+- [ ] Remove the non-shippable POC: delete `<scratch-root>/poc/`, `<scratch-root>/javap/` and wallet-holding scratch stores
+- [ ] Stop the podman Oracle container if this task started it
+- [ ] Run the AC-9 hygiene checks
+- [ ] Phase 8 verification passes
