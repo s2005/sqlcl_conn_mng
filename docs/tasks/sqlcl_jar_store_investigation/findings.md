@@ -152,3 +152,46 @@ Three operations find a connection by name case-insensitively and act on the fir
 - No temporary, backup or lock file appeared in a connection directory or in `connection_folders/` during any capture `[diff]` (the 2 ms watcher found only the `sqlcl/aliases.xml.bak_<n>` files).
 - `folders.json` is read and rewritten in place with `Files.write`; the serializer also calls `Files.createDirectories` and `Files.createFile`, and no rename or lock call `[javap]` (`FolderSerializer` method references).
 - Concurrent writers lose updates. Two processes each adding 10 folders kept all 20, but three processes each adding 60 kept 123 of 180, while all 180 commands printed `has been added` `[diff]` (`conc`, `conc2`). There is no locking, so a reader or a second writer can see or overwrite a stale tree.
+
+## Connection Id
+
+### Rule
+
+A connection id is 16 bytes from `java.security.SecureRandom`, encoded with the URL-safe Base64 alphabet (`A-Z`, `a-z`, `0-9`, `-`, `_`) and no padding, which always gives 22 characters:
+
+- `ConnectionIdentifiers$IdentifierGenerator` holds a static `SecureRandom` and a static `Base64.Encoder`. Its constant pool references `SecureRandom.nextBytes`, `Base64.getUrlEncoder`, `Encoder.withoutPadding` and `Encoder.encodeToString`, and nothing else that could derive the id from a name `[javap]`.
+- All 20 ids SQLcl wrote during Phase 2 decode to exactly 16 bytes, re-encode to the same text, and end in one of `A`, `Q`, `g` or `w`, as the canonical encoding of 16 bytes requires. Both `-` and `_` occur `[diff]`.
+- The ids are not UUIDs. The version nibble of byte 6 takes ten different values across the 20 ids, and the variant bits of byte 8 take all four values `[diff]`.
+
+A Python equivalent is `base64.urlsafe_b64encode(secrets.token_bytes(16)).rstrip(b"=").decode("ascii")`.
+
+### Effect of Operations
+
+| Operation | Id |
+| --------- | -- |
+| `rename -conn` | kept: the same directory's `dbtools.properties` is rewritten (`case/07_rename_lower`, `idrt/03_rename`) `[diff]` |
+| `move -conn` | kept: only `folders.json` changes (`ops/12_move_conn`, `idrt/04_move`) `[diff]` |
+| `connect -save -replace` | kept: only `credentials.sso` changes (`ops/05_save_replace_nopwd`) `[diff]` |
+| `clone` | new random id for the clone; the original keeps its id (`ops/37_clone_plain`, `idrt/05_clone`) `[diff]` |
+| `import -duplicates REPLACE` | new random id; the old connection is kept beside it (`imp/04_import_dup_replace`) `[diff]` |
+
+### Round Trip
+
+In the store `idrt`, SQLcl saved one connection, `seed`, with a password. A Python script then copied its directory byte for byte to five new directories and changed only the `name=` line of each `dbtools.properties`. It also wrote a `folders.json` listing the first copy in `/f`:
+
+| Name | Directory name |
+| ---- | -------------- |
+| `pyid` | generated in Python by the rule above |
+| `badlast` | 22 valid characters, but a last character (`B`) that no 16-byte encoding produces |
+| `bad21` | 21 characters |
+| `bad23` | 23 characters |
+| `badplus` | 22 characters ending in `+`, outside the URL-safe alphabet |
+
+Results:
+
+- `connmgr list` showed `pyid` under `f` and the other five at `/`; `connmgr show` printed all six with `Password: ******`; `connect -name pyid` and `connect -name badlast` each connected with the saved password, and `select user from dual` returned `PROBE` (`idrt/02_read`) `[round-trip]`.
+- `rename -conn pyid pyid2`, `move -conn pyid2 /`, `clone -original pyid2 pyc` (the clone carried the password, 426 bytes) and `delete -conn pyid2` all worked on the Python-made id, and `delete -conn bad23` removed the 23-character directory (`idrt/03_rename` to `idrt/07_delete_bad23`) `[round-trip]`.
+- SQLcl does not validate the directory name at all: any directory under `connections/` holding a `dbtools.properties` is a connection. The wallet does not depend on the directory it sits in, since a copied wallet worked under five different ids `[round-trip]`.
+- `sqlcl-conn-mng list` showed only `badlast`, `pyc` and `seed` from that store, because `src/sqlcl_conn_mng/store.py:21` accepts only names of exactly 22 characters from the URL-safe alphabet. A store holding a directory SQLcl lists but the tool skips can only come from a writer other than SQLcl; this is recorded for the follow-up, and the tool is not changed here `[round-trip]`.
+
+A SQLcl-free writer should generate ids by the rule above, which SQLcl accepts like its own.

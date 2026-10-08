@@ -54,12 +54,12 @@ Requirements: REQ-5
 
 Requirements: REQ-2
 
-- [ ] Decode the collected ids and check the UUID hypothesis
-- [ ] Check `javap` evidence for UUID or Base64 use
-- [ ] Record the effect of `rename`, `move` and `clone` on the id
-- [ ] Round trip with a Python-generated id, and with a rule-breaking id
-- [ ] Write the "Connection id" section of `findings.md`
-- [ ] Phase 3 verification passes
+- [x] Decode the collected ids and check the UUID hypothesis
+- [x] Check `javap` evidence for UUID or Base64 use
+- [x] Record the effect of `rename`, `move` and `clone` on the id
+- [x] Round trip with a Python-generated id, and with a rule-breaking id
+- [x] Write the "Connection id" section of `findings.md`
+- [x] Phase 3 verification passes
 
 ## Phase 4: dbtools.properties Write Format
 
