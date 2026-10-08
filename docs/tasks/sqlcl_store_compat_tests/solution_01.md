@@ -19,6 +19,7 @@ Keep `src/` untouched, correct the parts of the plan that do not match the code,
 | D2 | `run_cli` captures stdout, stderr and the `sqlcl_conn_mng` log records without `capsys`, and works from any fixture scope |
 | D3 | The `Makefile` gains `print-sqlcl-dir` and `print-sqlcl-bin`; the workflow reads the cache path and the bin directory from them |
 | D4 | Scenario store fixtures live in `tests/integration/conftest.py` as session-scoped fixtures from Phase 2 on |
+| D5 | Helpers and data types live in `tests/integration/harness.py`; `conftest.py` holds fixtures only |
 
 ## Files to Change
 
@@ -28,6 +29,7 @@ Keep `src/` untouched, correct the parts of the plan that do not match the code,
 | `docs/tasks/sqlcl_store_compat_tests/implementation_plan.md` | `run_cli` wording, the two print targets, fixture placement (D2, D3, D4) |
 | `tests/integration/conftest.py` | `run_cli` capture (D2); session-scoped store fixtures (D4) |
 | `Makefile` | `print-sqlcl-dir`, `print-sqlcl-bin` (D3) |
+| `tests/integration/harness.py` | New: helpers and data types (D5) |
 
 ## Implementation Outline
 

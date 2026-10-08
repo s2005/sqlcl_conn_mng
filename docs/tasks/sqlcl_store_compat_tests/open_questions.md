@@ -80,7 +80,7 @@ Context gathered before writing this file:
 - **Why it matters**: `connmgr import` is the only way to create a connection without a database, so the database-free scenarios need a committed export fixture. The investigation imported one (`findings.md`, "Effects per Operation", `imp/01_import`) but kept it in scratch, and `findings.md` records only the resulting keys, not the input file.
 - **Options**: (a) discovery step in Phase 1: write a minimal export with fake host, port, service and user, and accept it when SQLcl prints `Importing connection <name>: Success` and writes `type=ORACLE_BASIC`. (b) skip import and run every connection scenario against the database.
 - **Recommended**: (a) - why: it keeps most scenarios runnable without a database.
-- **Answer**: answered by Phase 1 (discovery). If no hand-written export is accepted, REQ-3 moves to Non-Requirements with the evidence recorded here, and the database-free connection scenarios of Phase 3 move to Phase 4.
+- **Answer**: (a), accepted on the first try in Phase 1 (2026-10-08). `tests/integration/data/sqldev_export.json` is a SQL Developer JSON export: a top-level `connections` list whose items have `name`, `type` `jdbc` and an `info` object with `ConnName`, `user`, `hostname`, `port`, `serviceName`, `OracleConnectionType` `BASIC`, `RaptorConnectionType` `Oracle`, `driver`, `customUrl`, `oraDriverType`, `subtype`, `SavePassword` `false`, `NoPasswordConnection` `TRUE` and an empty `role`. All values are fake (`db.example.test`, `1521`, `fakesvc`, `imp_user1` to `imp_user3`), and no password is present. SQLcl 25.4.1 printed `Importing connection imp1: Success`, `Importing connection imp3: Success`, `Importing connection imp2: Success` and `3 connection(s) processed`, and wrote three connection directories, each with `dbtools.properties` (keys `name, type, host, port, serviceName, userName`, `type=ORACLE_BASIC`, LF, final LF) and a 270-byte `credentials.sso`, matching `findings.md`, "Effects per Operation". The success lines come in an order other than the file's, so the store builder checks the lines of one step as a set, not a sequence. No fallback was needed: REQ-3 stays in scope, and Phases 2 and 3 run without a database.
 
 ## Added on 2026-10-08: Run the Tests in GitHub Actions
 
@@ -139,7 +139,7 @@ The user asked for the tests to run in GitHub Actions as well as locally, withou
 | Q8 | Answered | REQ-1 |
 | Q9 | Answered | REQ-9, Non-Requirements |
 | Q10 | Answered | REQ-8 |
-| Q11 | Answered by Phase 1 (discovery) | REQ-1, REQ-3 |
+| Q11 | Answered (Phase 1 discovery: accepted) | REQ-1, REQ-3 |
 | Q12 | Answered (user) | REQ-5, REQ-11 |
 | Q13 | Answered (user) | REQ-10 |
 | Q14 | Answered (user) | REQ-10, REQ-11 |

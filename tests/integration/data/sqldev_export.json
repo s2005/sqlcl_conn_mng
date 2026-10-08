@@ -1,0 +1,64 @@
+{
+  "connections": [
+    {
+      "info": {
+        "role": "",
+        "SavePassword": "false",
+        "OracleConnectionType": "BASIC",
+        "RaptorConnectionType": "Oracle",
+        "serviceName": "fakesvc",
+        "customUrl": "jdbc:oracle:thin:@//db.example.test:1521/fakesvc",
+        "oraDriverType": "thin",
+        "NoPasswordConnection": "TRUE",
+        "hostname": "db.example.test",
+        "driver": "oracle.jdbc.OracleDriver",
+        "port": "1521",
+        "subtype": "oraJDBC",
+        "ConnName": "imp1",
+        "user": "imp_user1"
+      },
+      "name": "imp1",
+      "type": "jdbc"
+    },
+    {
+      "info": {
+        "role": "",
+        "SavePassword": "false",
+        "OracleConnectionType": "BASIC",
+        "RaptorConnectionType": "Oracle",
+        "serviceName": "fakesvc",
+        "customUrl": "jdbc:oracle:thin:@//db.example.test:1521/fakesvc",
+        "oraDriverType": "thin",
+        "NoPasswordConnection": "TRUE",
+        "hostname": "db.example.test",
+        "driver": "oracle.jdbc.OracleDriver",
+        "port": "1521",
+        "subtype": "oraJDBC",
+        "ConnName": "imp2",
+        "user": "imp_user2"
+      },
+      "name": "imp2",
+      "type": "jdbc"
+    },
+    {
+      "info": {
+        "role": "",
+        "SavePassword": "false",
+        "OracleConnectionType": "BASIC",
+        "RaptorConnectionType": "Oracle",
+        "serviceName": "fakesvc",
+        "customUrl": "jdbc:oracle:thin:@//db.example.test:1521/fakesvc",
+        "oraDriverType": "thin",
+        "NoPasswordConnection": "TRUE",
+        "hostname": "db.example.test",
+        "driver": "oracle.jdbc.OracleDriver",
+        "port": "1521",
+        "subtype": "oraJDBC",
+        "ConnName": "imp3",
+        "user": "imp_user3"
+      },
+      "name": "imp3",
+      "type": "jdbc"
+    }
+  ]
+}

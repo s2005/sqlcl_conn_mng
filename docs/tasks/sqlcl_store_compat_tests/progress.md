@@ -24,18 +24,18 @@
 
 Requirements: REQ-1, REQ-8, REQ-10
 
-- [ ] Run the pre-implementation baseline from `verification.md`
-- [ ] Create the `Makefile` with `check`, `unit`, `integration`, `sqlcl`, `print-sqlcl-version` and `PYTEST_ARGS`
-- [ ] Add `.cache/` to `.gitignore`
-- [ ] Create `tests/integration/__init__.py` and `tests/integration/conftest.py`
-- [ ] Add `sqlcl_path` and `sqlcl_release` session fixtures with skip on missing SQLcl
-- [ ] Add `build_store(stages)` with ordered success-line checks and password masking
-- [ ] Add `run_cli`, `snapshot` (via `scripts/store_probe.py`) and `copy_store`
-- [ ] Add `db_settings` and `assert_no_password`
-- [ ] Discovery: write `tests/integration/data/sqldev_export.json` and confirm `connmgr import` accepts it
-- [ ] Record the discovery outcome in `open_questions.md`, Q11, and apply the fallback if it was rejected
-- [ ] Write `tests/integration/test_harness_smoke.py`
-- [ ] Verify Phase 1 and commit
+- [x] Run the pre-implementation baseline from `verification.md` (93 passed, 1 deselected; integration 1 passed; ruff, format, mypy clean)
+- [x] Create the `Makefile` with `check`, `unit`, `integration`, `sqlcl`, `print-sqlcl-version`, `print-sqlcl-dir`, `print-sqlcl-bin` and `PYTEST_ARGS` (`notes.md`, D3)
+- [x] Add `.cache/` to `.gitignore`
+- [x] Create `tests/integration/__init__.py`, `tests/integration/conftest.py` and `tests/integration/harness.py` (`notes.md`, D5)
+- [x] Add `sqlcl_path` and `sqlcl_release` session fixtures with skip on missing SQLcl
+- [x] Add `build_store(stages)` with ordered success-line checks and password masking
+- [x] Add `run_cli`, `snapshot` (via `scripts/store_probe.py`) and `copy_store`
+- [x] Add `db_settings` and `assert_no_password`
+- [x] Discovery: write `tests/integration/data/sqldev_export.json` and confirm `connmgr import` accepts it
+- [x] Record the discovery outcome in `open_questions.md`, Q11, and apply the fallback if it was rejected
+- [x] Write `tests/integration/test_harness_smoke.py`
+- [x] Verify Phase 1 and commit
 
 ## Phase 2: Folder and Import Scenarios
 

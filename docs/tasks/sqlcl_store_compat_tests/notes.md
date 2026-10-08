@@ -28,12 +28,18 @@ Drift found before Phase 1, between the task files in this folder and the code t
 - Code: pytest cannot share a fixture defined in one test module with another module, so Phase 5 would either move the fixtures or build the stores again.
 - Difference: the plan's sequence implies a rewrite of the Phase 2-4 fixtures in Phase 5.
 
+### D5: Test modules need the harness helpers, but the plan puts them in `conftest.py`
+
+- Spec: `implementation_plan.md`, Phase 1 and "Affected Files", place the helpers (`snapshot`, `copy_store`, `assert_no_password`, the store builder) and the data types in `tests/integration/conftest.py`.
+- Code: test modules must call these helpers and name the types directly; pytest discourages importing a `conftest.py` as a module, and `tests/__init__.py` (present) makes `tests.integration` an importable package.
+- Difference: the helpers need a module that tests can import; `conftest.py` should hold only fixtures.
+
 ## Candidate Solutions
 
 ### 01: Amend the spec where it is wrong, and build the harness to fit the code
 
-- Approach: correct the line references in `analysis.md` (D1); make `run_cli` redirect `sys.stdout` and `sys.stderr` with `contextlib` and attach a temporary handler to the `sqlcl_conn_mng` logger, appending the formatted records to the returned stderr text, so it works from any fixture scope (D2); add `print-sqlcl-dir` and `print-sqlcl-bin` targets beside `print-sqlcl-version` (D3); define the scenario store fixtures session-scoped in `tests/integration/conftest.py` from Phase 2 on (D4).
-- Scope: task docs, `tests/integration/conftest.py`, `Makefile`. No `src/` change.
+- Approach: correct the line references in `analysis.md` (D1); make `run_cli` redirect `sys.stdout` and `sys.stderr` with `contextlib` and attach a temporary handler to the `sqlcl_conn_mng` logger, appending the formatted records to the returned stderr text, so it works from any fixture scope (D2); add `print-sqlcl-dir` and `print-sqlcl-bin` targets beside `print-sqlcl-version` (D3); define the scenario store fixtures session-scoped in `tests/integration/conftest.py` from Phase 2 on (D4); put the helpers and data types in `tests/integration/harness.py`, imported by `conftest.py` and the test modules, and keep only fixtures in `conftest.py` (D5).
+- Scope: task docs, `tests/integration/conftest.py`, `tests/integration/harness.py`, `Makefile`. No `src/` change.
 - Pros: every drift resolved; no product change; the workflow reads every path from the `Makefile`; no store is built twice.
 - Cons: two make targets the plan did not list; `run_cli` differs from the plan's wording.
 - Risk: low.

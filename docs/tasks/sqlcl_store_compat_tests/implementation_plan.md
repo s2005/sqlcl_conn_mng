@@ -24,7 +24,8 @@ flowchart LR
 | `.gitignore` | Update | Ignore `.cache/` (SQLcl download) |
 | `.github/workflows/ci.yml` | Create | Ubuntu and Windows matrix calling `make` targets |
 | `tests/integration/__init__.py` | Create | Package marker |
-| `tests/integration/conftest.py` | Create | SQLcl discovery, release, store builder, CLI runner, snapshots, database settings, password guard |
+| `tests/integration/conftest.py` | Create | Fixtures: SQLcl discovery, release, store builder, CLI runner, database settings, scenario stores |
+| `tests/integration/harness.py` | Create | Helpers and data types used by fixtures and tests: step checks, snapshots, store copy, CLI capture, password guard (`notes.md`, D5) |
 | `tests/integration/data/sqldev_export.json` | Create | SQL Developer export accepted by `connmgr import` (fake values) |
 | `tests/integration/test_harness_smoke.py` | Create | Harness self-checks and skip behaviour |
 | `tests/integration/test_folders_compat.py` | Create | REQ-2 scenarios |
