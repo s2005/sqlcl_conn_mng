@@ -21,7 +21,8 @@ Context gathered before writing this file:
 - **Options**: (a) clean-room: black-box observation of the store before and after each SQLcl command, plus `javap -p` signatures and `javap -constants` string constants; no method bodies. (b) Full local decompilation (CFR or similar) in the scratch directory, never committed, with findings written as prose specifications only. (c) Black-box observation only, no jar inspection.
 - **Recommended**: (a), escalating to (b) only for a gap (a) cannot close and only after you have checked the Oracle Free Use Terms and Conditions yourself - why: (a) answers most format questions with no licence exposure, and the request explicitly asks what the jars do, which rules out (c).
 - **Answer**: (a) clean-room first; local decompilation in the scratch directory only for a gap (a) cannot close, and only after the user confirms the licence allows it - recommended default adopted on 2026-10-08 because the question went unanswered; reversible, revisit before Phase 1 starts if you disagree.
-- **Outcome (Phase 6)**: the escalation to (b) was not taken. The one gap (a) could not close is the obfuscation of the auto-login wallet. The investigation does not reverse-engineer it, by decompilation or otherwise, so `[decompile]` evidence does not occur in `findings.md` (`notes.md`, D3).
+- **Outcome (Phase 6, first pass, superseded)**: the escalation to (b) was not taken. The one gap (a) could not close is the obfuscation of the auto-login wallet. The investigation does not reverse-engineer it, by decompilation or otherwise, so `[decompile]` evidence does not occur in `findings.md` (`notes.md`, D3).
+- **Renewed outcome (2026-10-08)**: the escalation to (b) was still not taken. The wallet format was worked out from public research, cryptographic standards, `javap` signatures and black-box structure probes of dummy wallets, without decompiling any Oracle method body. The gap is closed, `[decompile]` evidence still does not occur in `findings.md`, and the new evidence carries the `[structure]` and `[standard]` tags (`findings.md`, "credentials.sso"; `notes.md`, D5; `solution_04.md`).
 
 ## Q2: Is writing `credentials.sso` from Python in scope for the investigation?
 
@@ -29,7 +30,8 @@ Context gathered before writing this file:
 - **Options**: (a) full: document the SSO wallet layout well enough to create an empty wallet, add or replace the password secret, read whether a secret is present, and copy it on clone. (b) partial: only how to create an empty wallet and detect whether a password secret exists; saving a password still needs SQLcl. (c) none: metadata files only; any operation that touches the wallet keeps needing SQLcl.
 - **Recommended**: (a), run as its own phase with a feasibility exit (stop and record the blocker if the format cannot be reproduced) - why: without it the user goal is only half met, and the phase boundary keeps a failure from blocking the metadata findings.
 - **Answer**: (a) full, in its own phase with a feasibility exit - recommended default adopted on 2026-10-08 because the question went unanswered; reversible, revisit before Phase 1 starts if you disagree.
-- **Outcome (Phase 6)**: the feasibility exit was taken; writing a wallet from Python is blocked. What works without wallet bytes: a connection without a saved password needs no `credentials.sso` at all, and clone, rename, move and delete only copy or leave the existing wallet (`findings.md`, "credentials.sso").
+- **Outcome (Phase 6, first pass, superseded)**: the feasibility exit was taken; writing a wallet from Python is blocked. What works without wallet bytes: a connection without a saved password needs no `credentials.sso` at all, and clone, rename, move and delete only copy or leave the existing wallet (`findings.md`, "credentials.sso").
+- **Renewed outcome (2026-10-08)**: the blocker is superseded. A standard-library Python writer generated an empty wallet and two password wallets; SQLcl 25.4.1 showed the expected password state for each and logged in by saved name with both password wallets (`findings.md`, "credentials.sso"; "Renewed Investigation Outcome" below).
 
 ## Q3: What runtime may the future SQLcl-free implementation assume?
 
@@ -83,7 +85,7 @@ Context gathered before writing this file:
 
 ## Q10: May a SQLcl-free writer store a password in plain text?
 
-- **Why it matters**: Phase 6 showed that SQLcl connects with a password read from `ojdbc.properties` in the connection directory, which would make saving a password possible without a wallet (`findings.md`, "Wallet-Free Alternatives").
+- **Why it matters**: Phase 6 showed that SQLcl connects with a password read from `ojdbc.properties` in the connection directory, which would make saving a password possible without a wallet (`findings.md`, "Prior Wallet Observations and Alternatives").
 - **Options**: (a) yes, optionally, behind a warning. (b) no; saving a password keeps using SQLcl.
 - **Answer**: (b) - decided by the user on 2026-10-08: "security will be broken by such change if password will be save in plain text".
 
