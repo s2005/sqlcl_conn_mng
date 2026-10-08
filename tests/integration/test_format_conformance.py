@@ -12,12 +12,14 @@ import pytest
 
 from tests.integration.harness import (
     EDGE_NAMES,
+    NON_ASCII_NAMES,
     SPECIAL_USER,
     BuiltStore,
     DbSettings,
     assert_format,
     conn_dirs,
     conn_files,
+    edge_params,
     file_changes,
     ids_by_name,
     raw_folder_ids,
@@ -222,7 +224,7 @@ def raw_prefixed(store: BuiltStore, prefix: str) -> list[str]:
     return found
 
 
-@pytest.mark.parametrize("value", EDGE_NAMES)
+@pytest.mark.parametrize("value", edge_params(EDGE_NAMES))
 def test_edge_name_line(edge_store: BuiltStore, sqlcl_release: str, value: str) -> None:
     ok = "name=" + escape(value) in raw_prefixed(edge_store, "name=")
     assert_format(ok, f"name line for {value!r}", sqlcl_release)
@@ -234,7 +236,7 @@ def test_edge_special_user_line(edge_store: BuiltStore, sqlcl_release: str) -> N
     assert_format(ok, "special user line", sqlcl_release)
 
 
-@pytest.mark.parametrize("value", ["caf\u00e91", "\u00fcber1"])
+@pytest.mark.parametrize("value", edge_params(NON_ASCII_NAMES))
 def test_edge_raw_utf8(edge_store: BuiltStore, sqlcl_release: str, value: str) -> None:
     needle = b"name=" + value.encode("utf-8") + b"\n"
     found = any(

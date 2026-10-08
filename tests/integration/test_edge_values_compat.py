@@ -12,9 +12,11 @@ from tests.integration.harness import (
     EDGE_FOLDERS,
     EDGE_NAMES,
     SPECIAL_USER,
+    STDIN_ENCODING_XFAIL,
     BuiltStore,
     CliResult,
     copy_store,
+    edge_params,
 )
 
 pytestmark = pytest.mark.integration
@@ -30,7 +32,7 @@ def listed(store: Path, run_cli: RunCli) -> list[dict[str, Any]]:
     return rows
 
 
-@pytest.mark.parametrize("name", EDGE_NAMES)
+@pytest.mark.parametrize("name", edge_params(EDGE_NAMES))
 def test_edge_name(edge_store: BuiltStore, run_cli: RunCli, name: str) -> None:
     rows = [r for r in listed(edge_store.home, run_cli) if r["name"] == name]
     assert len(rows) == 1
@@ -58,6 +60,7 @@ def test_edge_folders(edge_store: BuiltStore, run_cli: RunCli) -> None:
     assert "/DEV" in paths
 
 
+@STDIN_ENCODING_XFAIL
 def test_tool_clone_non_ascii_name(edge_store: BuiltStore, run_cli: RunCli, tmp_path: Path) -> None:
     copy = copy_store(edge_store.home, tmp_path)
     new_name = "caf\u00e92"

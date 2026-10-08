@@ -20,6 +20,7 @@ Keep `src/` untouched, correct the parts of the plan that do not match the code,
 | D3 | The `Makefile` gains `print-sqlcl-dir` and `print-sqlcl-bin`; the workflow reads the cache path and the bin directory from them |
 | D4 | Scenario store fixtures live in `tests/integration/conftest.py` as session-scoped fixtures from Phase 2 on |
 | D5 | Helpers and data types live in `tests/integration/harness.py`; `conftest.py` holds fixtures only |
+| D6 | The non-ASCII cases carry one shared strict `xfail` limited to Linux (`STDIN_ENCODING_XFAIL`), where the first CI run showed the stdin-encoding mismatch |
 
 ## Files to Change
 

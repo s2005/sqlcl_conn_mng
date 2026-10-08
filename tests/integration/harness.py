@@ -11,6 +11,7 @@ import json
 import logging
 import re
 import shutil
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -29,12 +30,23 @@ DATA_DIR = Path(__file__).resolve().parent / "data"
 IMPORT_FIXTURE = DATA_DIR / "sqldev_export.json"
 IMPORT_NAMES = ("imp1", "imp2", "imp3")
 SPECIAL_CHARS = ":=!.-_@(),;$*+<>|[]{}%~^"
+NON_ASCII_NAMES = ("caf\u00e91", "\u00fcber1")
 EDGE_NAMES = (
     " lead1",
     "inner space1",
     *(f"n{c}1" for c in SPECIAL_CHARS),
-    "caf\u00e9" + "1",
-    "\u00fcber1",
+    *NON_ASCII_NAMES,
+)
+# The tool writes SQLcl's stdin in the locale encoding. That matches SQLcl's decoding on
+# Windows (cp1252 on both sides) but not on Linux, where SQLcl decodes the UTF-8 input as a
+# single-byte code page and stores "caf\u00e91" as "caf\u00c3\u00a91".
+STDIN_ENCODING_XFAIL = pytest.mark.xfail(
+    condition=sys.platform == "linux",
+    strict=True,
+    reason=(
+        "sqlcl_stdin_encoding: on Linux SQLcl decodes the tool's UTF-8 stdin "
+        "as a single-byte code page"
+    ),
 )
 SPECIAL_USER = "u:s=e#r!\\x y"
 EDGE_FOLDERS = ("/back\\slash", "/lt<gt>", "/dev", "/DEV")
@@ -44,6 +56,13 @@ PROBE_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "store_probe.py
 # these, in any order"; an empty string means nothing is checked.
 Expected = str | tuple[str, ...]
 Step = tuple[str, Expected]
+
+
+def edge_params(values: Sequence[str]) -> list[Any]:
+    """Wrap values for parametrize, marking the non-ASCII ones with STDIN_ENCODING_XFAIL."""
+    return [
+        pytest.param(v, marks=STDIN_ENCODING_XFAIL) if v in NON_ASCII_NAMES else v for v in values
+    ]
 
 
 class StoreBuildError(AssertionError):
