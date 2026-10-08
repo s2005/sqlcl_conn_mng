@@ -89,14 +89,14 @@ Requirements: REQ-7
 
 Requirements: REQ-11, REQ-10
 
-- [ ] Create `.github/workflows/ci.yml` with the Ubuntu and Windows matrix
-- [ ] Add setup steps: uv with Python 3.13, Temurin 17, `choco install make` on Windows
-- [ ] Add `make check`, `make unit`, the SQLcl cache keyed by `make -s print-sqlcl-version`, `make sqlcl` and the `GITHUB_PATH` entry
-- [ ] Add the Linux-only password generation with `::add-mask::`, `make db-start` and the `always()` `make db-stop`
-- [ ] Add `make integration` for both runners
-- [ ] Confirm the workflow repeats no command, version or container setting
-- [ ] Push, watch the run, and confirm both jobs, database pass on Ubuntu, skip on Windows, masked password, cache hit on rerun
-- [ ] Commit
+- [x] Create `.github/workflows/ci.yml` with the Ubuntu and Windows matrix
+- [x] Add setup steps: uv with Python 3.13, Temurin 17, `choco install make` on Windows
+- [x] Add `make check`, `make unit`, the SQLcl cache keyed by `make -s print-sqlcl-version` (path from `make -s print-sqlcl-dir`), `make sqlcl` and the `GITHUB_PATH` entry from `make -s print-sqlcl-bin` (`notes.md`, D3)
+- [x] Add the Linux-only password generation with `::add-mask::`, `make db-start` and the `always()` `make db-stop`
+- [x] Add `make integration` for both runners
+- [x] Confirm the workflow repeats no command, version or container setting (`grep` for the version, image, service, port, user, tool names, cache and bin paths: no match). `DB_IMAGE` is now the fully qualified `docker.io/gvenzl/oracle-xe:21-slim`, the same image, because rootless Podman refuses an ambiguous short name when it cannot prompt
+- [~] Push, watch the run, and confirm both jobs, database pass on Ubuntu, skip on Windows, masked password, cache hit on rerun
+- [~] Commit
 
 ## Phase 7: Documentation and Final Verification
 

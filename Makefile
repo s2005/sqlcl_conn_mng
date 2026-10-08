@@ -9,7 +9,7 @@ SQLCL_BIN_DIR := $(SQLCL_HOME)/sqlcl/bin
 PYTEST_ARGS ?=
 
 ENGINE ?= podman
-DB_IMAGE := gvenzl/oracle-xe:21-slim
+DB_IMAGE := docker.io/gvenzl/oracle-xe:21-slim
 DB_CONTAINER := sqlcl-itest-xe
 DB_PORT ?= 1521
 DB_WAIT_TRIES ?= 120

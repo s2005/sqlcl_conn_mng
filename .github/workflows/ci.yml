@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: checks (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install make (Windows)
+        if: runner.os == 'Windows'
+        run: choco install make --no-progress -y
+
+      - name: Lint, format and type checks
+        run: make check
+
+      - name: Unit tests
+        run: make unit
+
+      - name: Read SQLcl settings from the Makefile
+        id: sqlcl
+        run: |
+          echo "version=$(make -s print-sqlcl-version)" >> "$GITHUB_OUTPUT"
+          echo "dir=$(make -s print-sqlcl-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache SQLcl
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.sqlcl.outputs.dir }}
+          key: sqlcl-${{ runner.os }}-${{ steps.sqlcl.outputs.version }}
+
+      - name: Download SQLcl
+        run: make sqlcl
+
+      - name: Put SQLcl on PATH
+        run: make -s print-sqlcl-bin >> "$GITHUB_PATH"
+
+      # The password is masked before anything else can print it; the database
+      # lives only for this job, so no repository secret exists.
+      - name: Generate the test database password (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          PW="$(uv run python -c 'import secrets; print(secrets.token_urlsafe(18))')"
+          echo "::add-mask::$PW"
+          echo "SQLCL_ITEST_PASSWORD=$PW" >> "$GITHUB_ENV"
+
+      - name: Start the test database (Linux)
+        if: runner.os == 'Linux'
+        run: make db-start
+
+      - name: Integration tests
+        run: make integration
+
+      - name: Stop the test database (Linux)
+        if: always() && runner.os == 'Linux'
+        run: make db-stop
