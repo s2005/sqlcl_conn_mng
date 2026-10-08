@@ -21,6 +21,7 @@ Context gathered before writing this file:
 - **Options**: (a) clean-room: black-box observation of the store before and after each SQLcl command, plus `javap -p` signatures and `javap -constants` string constants; no method bodies. (b) Full local decompilation (CFR or similar) in the scratch directory, never committed, with findings written as prose specifications only. (c) Black-box observation only, no jar inspection.
 - **Recommended**: (a), escalating to (b) only for a gap (a) cannot close and only after you have checked the Oracle Free Use Terms and Conditions yourself - why: (a) answers most format questions with no licence exposure, and the request explicitly asks what the jars do, which rules out (c).
 - **Answer**: (a) clean-room first; local decompilation in the scratch directory only for a gap (a) cannot close, and only after the user confirms the licence allows it - recommended default adopted on 2026-10-08 because the question went unanswered; reversible, revisit before Phase 1 starts if you disagree.
+- **Outcome (Phase 6)**: the escalation to (b) was not taken. The one gap (a) could not close is the obfuscation of the auto-login wallet. The investigation does not reverse-engineer it, by decompilation or otherwise, so `[decompile]` evidence does not occur in `findings.md` (`notes.md`, D3).
 
 ## Q2: Is writing `credentials.sso` from Python in scope for the investigation?
 
@@ -28,6 +29,7 @@ Context gathered before writing this file:
 - **Options**: (a) full: document the SSO wallet layout well enough to create an empty wallet, add or replace the password secret, read whether a secret is present, and copy it on clone. (b) partial: only how to create an empty wallet and detect whether a password secret exists; saving a password still needs SQLcl. (c) none: metadata files only; any operation that touches the wallet keeps needing SQLcl.
 - **Recommended**: (a), run as its own phase with a feasibility exit (stop and record the blocker if the format cannot be reproduced) - why: without it the user goal is only half met, and the phase boundary keeps a failure from blocking the metadata findings.
 - **Answer**: (a) full, in its own phase with a feasibility exit - recommended default adopted on 2026-10-08 because the question went unanswered; reversible, revisit before Phase 1 starts if you disagree.
+- **Outcome (Phase 6)**: the feasibility exit was taken; writing a wallet from Python is blocked. What works without wallet bytes: a connection without a saved password needs no `credentials.sso` at all, and clone, rename, move and delete only copy or leave the existing wallet (`findings.md`, "credentials.sso").
 
 ## Q3: What runtime may the future SQLcl-free implementation assume?
 
@@ -35,6 +37,7 @@ Context gathered before writing this file:
 - **Options**: (a) pure Python, no Java and no Oracle jars. (b) Python plus a JRE and the Maven Central `oraclepki` jar, used only for wallet operations. (c) investigate both and compare.
 - **Recommended**: (c) - why: (a) is the stated goal, but (b) is the fallback if Q2 hits a wall, and knowing its cost up front avoids a second investigation.
 - **Answer**: (c) investigate both, pure Python as the target and Python + JRE + Maven Central `oraclepki` as the costed fallback - recommended default adopted on 2026-10-08 because the question went unanswered; reversible, revisit before Phase 1 starts if you disagree.
+- **Revised answer (user, 2026-10-08, after Phase 6)**: (a). Saving must work "without using 3rd party libs", so the `oraclepki` route is costed on paper only and not adopted. Python plus SQLcl, used for password operations only, is added to the comparison (`notes.md`, D1 and D2; `solution_01.md`).
 
 ## Q4: One task with a phase per area, or several task folders?
 
@@ -78,16 +81,23 @@ Context gathered before writing this file:
 - **Recommended**: (a).
 - **Answer**: (a) - decided by reading `~/.claude/CLAUDE.md` (no reference docs unless the user asks for them).
 
+## Q10: May a SQLcl-free writer store a password in plain text?
+
+- **Why it matters**: Phase 6 showed that SQLcl connects with a password read from `ojdbc.properties` in the connection directory, which would make saving a password possible without a wallet (`findings.md`, "Wallet-Free Alternatives").
+- **Options**: (a) yes, optionally, behind a warning. (b) no; saving a password keeps using SQLcl.
+- **Answer**: (b) - decided by the user on 2026-10-08: "security will be broken by such change if password will be save in plain text".
+
 ## Resolution Summary
 
 | ID | Status | Carried by |
 | -- | ------ | ---------- |
-| Q1 | Answered (default) | All phases (method), Phase 6 (escalation gate) |
-| Q2 | Answered (default) | REQ-6, Phase 6 (feasibility exit) |
-| Q3 | Answered (default) | REQ-7, Phase 7 |
+| Q1 | Answered (default); escalation not taken | All phases (method), Phase 6 (escalation gate) |
+| Q2 | Answered (default); feasibility exit taken | REQ-6, Phase 6 (feasibility exit) |
+| Q3 | Revised by the user: (a) | REQ-7, Phase 7 |
 | Q4 | Answered (default) | Task structure, REQ-8 |
 | Q5 | Answered | Non-Requirements |
 | Q6 | Answered | All phases |
 | Q7 | Answered | Harness phase |
 | Q8 | Answered | All phases |
 | Q9 | Answered | Deliverables |
+| Q10 | Answered by the user: (b) | REQ-6, REQ-7, Phase 8 follow-up outline |

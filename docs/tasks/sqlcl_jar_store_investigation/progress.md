@@ -90,13 +90,14 @@ Requirements: REQ-6
 
 - [x] Compare wallet sizes and hashes across the Phase 2 cases
 - [x] Record secret aliases, algorithm names and format constants from `javap` (aliases and provider recorded; format constants not pursued, see blocker)
-- [!] Build the structure analyser in `<scratch-root>/poc/` (offsets, lengths, names only) - blocked: reverse-engineering the wallet obfuscation is not pursued
-- [!] Map the wallet layout - blocked, same reason
-- [!] POC: Python-written empty wallet accepted by SQLcl - blocked, same reason
-- [!] POC: Python-written wallet with the dummy password accepted by SQLcl - blocked, same reason
-- [!] Apply the escalation gate if the layout cannot be mapped clean-room - needs a user decision
+- [-] Build the structure analyser in `<scratch-root>/poc/` (offsets, lengths, names only) - skipped: reverse-engineering the wallet obfuscation is not pursued
+- [-] Map the wallet layout - skipped, same reason
+- [-] POC: Python-written empty wallet accepted by SQLcl - skipped, same reason
+- [-] POC: Python-written wallet with the dummy password accepted by SQLcl - skipped, same reason
+- [x] Apply the escalation gate if the layout cannot be mapped clean-room - not taken; recorded in `open_questions.md` Q1, `notes.md` D3
 - [x] Write the "credentials.sso" section of `findings.md` with the verdict (blocked)
-- [!] Phase 6 verification passes - awaiting the user decision on the blocker
+- [x] Black-box test of wallet-free alternatives: no wallet file, 0-byte wallet, `ojdbc.properties` password
+- [x] Phase 6 verification passes - verdict: blocked, with the wallet-free alternatives; plain text rejected by the user (Q10)
 
 ## Phase 7: Runtime Comparison
 
@@ -104,7 +105,7 @@ Requirements: REQ-7
 
 - [ ] Cost the pure-Python runtime
 - [ ] Cost the Python + JRE + Maven Central `oraclepki` runtime
-- [ ] Prove the JRE call sequence hands-on if Phase 6 was blocked
+- [-] Prove the JRE call sequence hands-on if Phase 6 was blocked - not applicable: third-party libraries ruled out by the user (`notes.md` D1, `solution_01.md`)
 - [ ] Write the "Runtime comparison" section of `findings.md` with one recommendation
 - [ ] Phase 7 verification passes
 
