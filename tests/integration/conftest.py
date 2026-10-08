@@ -11,8 +11,11 @@ import pytest
 
 from tests.integration import harness
 from tests.integration.harness import (
+    EDGE_FOLDERS,
+    EDGE_NAMES,
     IMPORT_FIXTURE,
     IMPORT_NAMES,
+    SPECIAL_USER,
     BuiltStore,
     CliResult,
     DbSettings,
@@ -150,3 +153,64 @@ def import_store(build_store: Callable[..., BuiltStore]) -> BuiltStore:
         [(f'connmgr import -duplicates REPLACE "{path}"', lines(""))],
     ]
     return build_store("imports", stages)
+
+
+@pytest.fixture(scope="session")
+def conn_ops_store(build_store: Callable[..., BuiltStore]) -> BuiltStore:
+    """Build a store through clone, move, rename and delete of connections.
+
+    Stage 1 imports imp1..imp3, adds /f and clones imp1 as c_plain, c_user (user
+    other_user), c_nopwd (no password), c1, C1 and c_doomed. Stage 2 moves imp2 to
+    /f. Stage 3 clones imp2 as c_from_folder. Stage 4 renames c_plain to c_renamed.
+    Stage 5 deletes c_doomed.
+    """
+
+    def cloned(name: str) -> str:
+        return f"Connection {name} has been cloned"
+
+    stages: list[list[Step]] = [
+        [
+            import_step(),
+            ("connmgr add -folder /f", "Folder /f has been added"),
+            ("connmgr clone -original imp1 c_plain", cloned("c_plain")),
+            ("connmgr clone -original imp1 -username other_user c_user", cloned("c_user")),
+            ("connmgr clone -original imp1 -nopwd c_nopwd", cloned("c_nopwd")),
+            ("connmgr clone -original imp1 c1", cloned("c1")),
+            ("connmgr clone -original imp1 C1", cloned("C1")),
+            ("connmgr clone -original imp1 c_doomed", cloned("c_doomed")),
+        ],
+        [("connmgr move -conn imp2 /f", "Connection imp2 has been moved to /f")],
+        [("connmgr clone -original imp2 c_from_folder", cloned("c_from_folder"))],
+        [("connmgr rename -conn c_plain c_renamed", "Connection c_plain has been renamed")],
+        [("connmgr delete -conn c_doomed", "Connection c_doomed has been deleted")],
+    ]
+    return build_store("conn_ops", stages)
+
+
+@pytest.fixture(scope="session")
+def edge_store(build_store: Callable[..., BuiltStore]) -> BuiltStore:
+    """Build a store holding clones and folders with unusual names; one stage.
+
+    Stage 1 imports imp1..imp3, clones imp1 under every name in EDGE_NAMES, clones
+    imp1 as c_special_user with the user SPECIAL_USER and adds every EDGE_FOLDERS
+    folder.
+    """
+    steps: list[Step] = [import_step()]
+    for name in EDGE_NAMES:
+        # SQLcl's console encoding differs by platform and it trims the echoed name,
+        # so non-ASCII and space-padded names are checked by the generic part only.
+        expected = (
+            f"Connection {name} has been cloned"
+            if name.isascii() and name == name.strip()
+            else "has been cloned"
+        )
+        steps.append((f'connmgr clone -original imp1 "{name}"', expected))
+    steps.append(
+        (
+            f'connmgr clone -original imp1 -username "{SPECIAL_USER}" c_special_user',
+            "Connection c_special_user has been cloned",
+        )
+    )
+    for folder in EDGE_FOLDERS:
+        steps.append((f'connmgr add -folder "{folder}"', f"Folder {folder} has been added"))
+    return build_store("edge_values", [steps])

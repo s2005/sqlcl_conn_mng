@@ -53,13 +53,13 @@ Requirements: REQ-2, REQ-3
 
 Requirements: REQ-4, REQ-5
 
-- [ ] Build the connection-operations store in stages around rename, move and delete
-- [ ] Assert id behaviour for rename, move, clone and delete, and clone folder placement
-- [ ] Assert case-sensitive lookup for `c1` and `C1`
-- [ ] Assert the tool's `rename`, `move`, `clone`, `clone --user`, `clone --no-password`, `delete --yes` on a copied store
-- [ ] Build the edge-values store and assert every name, user and folder value
-- [ ] Assert the tool-made non-ASCII clone, or commit it as a Windows-only strict `xfail` citing `sqlcl_stdin_encoding`
-- [ ] Verify Phase 3 and commit
+- [x] Build the connection-operations store in stages around rename, move and delete
+- [x] Assert id behaviour for rename, move, clone and delete, and clone folder placement
+- [x] Assert case-sensitive lookup for `c1` and `C1`
+- [x] Assert the tool's `rename`, `move`, `clone`, `clone --user`, `clone --no-password`, `delete --yes` on a copied store
+- [x] Build the edge-values store and assert every name, user and folder value
+- [x] Assert the tool-made non-ASCII clone, or commit it as a Windows-only strict `xfail` citing `sqlcl_stdin_encoding` (passes on Windows: Python's cp1252 stdin matches SQLcl's cp1252 decoding here, so no `xfail`)
+- [x] Verify Phase 3 and commit
 
 ## Phase 4: Live-Database Scenarios
 

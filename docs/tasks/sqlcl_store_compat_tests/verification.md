@@ -172,8 +172,8 @@ The feature can be accepted when all items are true:
 - [x] AC-2 - the import fixture is committed and SQLcl imports it - verified by: Phase 1 verification and `open_questions.md`, Q11
 - [x] AC-3 - folder scenarios pass, including the tool's folder commands on SQLcl-built trees - verified by: Phase 2 verification
 - [x] AC-4 - import scenarios pass, including `RENAME` and `REPLACE`, with no imported value lost - verified by: Phase 2 verification
-- [ ] AC-5 - connection operation scenarios pass for SQLcl-made and tool-made operations, including case-sensitive lookup - verified by: Phase 3 verification
-- [ ] AC-6 - every edge-case value is reported exactly or is a strict, platform-limited `xfail` naming its follow-up - verified by: Phase 3 verification
+- [x] AC-5 - connection operation scenarios pass for SQLcl-made and tool-made operations, including case-sensitive lookup - verified by: Phase 3 verification
+- [x] AC-6 - every edge-case value is reported exactly or is a strict, platform-limited `xfail` naming its follow-up - verified by: Phase 3 verification
 - [ ] AC-7 - database scenarios pass with the variables set and skip with a reason without them - verified by: Phase 4 verification
 - [ ] AC-8 - format conformance passes on SQLcl 25.4.1 and a failing assertion names the release - verified by: Phase 5 verification
 - [ ] AC-9 - no password in tool output or committed files, the repository store unchanged, no wallet opened - verified by: "Secret and Store Hygiene" and the `assert_no_password` checks in Phase 4

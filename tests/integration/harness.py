@@ -27,6 +27,16 @@ DB_VARS = ("SQLCL_ITEST_CONNECT", "SQLCL_ITEST_USER", "SQLCL_ITEST_PASSWORD")
 DATA_DIR = Path(__file__).resolve().parent / "data"
 IMPORT_FIXTURE = DATA_DIR / "sqldev_export.json"
 IMPORT_NAMES = ("imp1", "imp2", "imp3")
+SPECIAL_CHARS = ":=!.-_@(),;$*+<>|[]{}%~^"
+EDGE_NAMES = (
+    " lead1",
+    "inner space1",
+    *(f"n{c}1" for c in SPECIAL_CHARS),
+    "caf\u00e9" + "1",
+    "\u00fcber1",
+)
+SPECIAL_USER = "u:s=e#r!\\x y"
+EDGE_FOLDERS = ("/back\\slash", "/lt<gt>", "/dev", "/DEV")
 PROBE_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "store_probe.py"
 
 # A SQLcl command and the success line(s) it must print; a tuple means "all of
@@ -150,6 +160,19 @@ def raw_folder_ids(raw: Mapping[str, Any]) -> dict[str, list[str]]:
 
     walk(raw.get("folders", []), "")
     return flat
+
+
+def ids_by_name(snap: Mapping[str, Any]) -> dict[str, list[str]]:
+    """Map each connection name of a snapshot to the ids of the connections holding it."""
+    found: dict[str, list[str]] = {}
+    for key, entry in snap["files"].items():
+        parts = key.split("/")
+        if len(parts) != 3 or parts[0] != "connections" or parts[2] != "dbtools.properties":
+            continue
+        name = entry["properties"].get("name")
+        if name is not None:
+            found.setdefault(str(name), []).append(parts[1])
+    return found
 
 
 def assert_no_password(password: str, *texts: str) -> None:
