@@ -103,11 +103,11 @@ Requirements: REQ-6
 
 Requirements: REQ-7
 
-- [ ] Cost the pure-Python runtime
-- [ ] Cost the Python + JRE + Maven Central `oraclepki` runtime
+- [x] Cost the pure-Python runtime
+- [x] Cost the Python + JRE + Maven Central `oraclepki` runtime
 - [-] Prove the JRE call sequence hands-on if Phase 6 was blocked - not applicable: third-party libraries ruled out by the user (`notes.md` D1, `solution_01.md`)
-- [ ] Write the "Runtime comparison" section of `findings.md` with one recommendation
-- [ ] Phase 7 verification passes
+- [x] Write the "Runtime comparison" section of `findings.md` with one recommendation
+- [x] Phase 7 verification passes
 
 ## Phase 8: Synthesis and Follow-Up Task Outline
 
