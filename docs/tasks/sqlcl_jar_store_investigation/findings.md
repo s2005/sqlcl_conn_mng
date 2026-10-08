@@ -301,3 +301,25 @@ Each probe was written from Python into a copy of the `fold` connections, then S
 - **SQLcl and the tool read the Python file.** The prototype wrote a different nested tree into the store `foldrt`: `/empty`, `/ops` holding `f3`, `/team/a/b` holding `f1`, and `/team/c` holding `f2`. `connmgr list` drew exactly that tree (`foldrt/01_list`). `sqlcl-conn-mng folders --format json` and `sqlcl-conn-mng list` reported the same folders and the same folder for each connection `[round-trip]`.
 
 A SQLcl-free writer must never list one id in two folders. SQLcl does not repair such a file, and it refuses every folder command until the file is fixed.
+
+## credentials.sso
+
+### Verdict
+
+**Blocked** for writing a wallet from pure Python. Producing a new wallet, or adding a password to one, would require reproducing the obfuscation that protects Oracle's auto-login wallet. Oracle does not document that format, so reproducing it means reverse-engineering Oracle's credential protection, and this investigation does not do that. No Python-written wallet was built or offered to SQLcl. The wallet operations that need no new wallet bytes do work from Python; see "What Works Without Writing a Wallet".
+
+### Observed Behaviour
+
+These observations come from sizes, hash prefixes and SQLcl output only; no wallet byte was read or printed.
+
+- Every connection directory holds a `credentials.sso`, with or without a saved password. A wallet without a password is 270 bytes and one with the dummy password is 426 bytes `[diff]` (`ops/01_save_pwd`, `ops/02_save_nopwd`).
+- Each write produces new bytes. All 46 wallets SQLcl wrote in the `ops`, `case`, `imp`, `names`, `chars` and `fold` stores have distinct SHA-256 hashes, including the 43 without a password, and rewriting the same password with `-replace` changed the hash `[diff]` (`ops/06_save_replace_pwd`). A constant empty-wallet template therefore does not exist.
+- SQLcl's credential code names these secret aliases: `dbtools.database.password.base64`, `dbtools.proxy.password.base64`, and the legacy `oracle.security.client.password`, `oracle.security.client.password1`, `oracle.security.client.username` and `oracle.security.client.connect_string`. `ConnectionCredentials` has a `cleanupLegacyPasswords` method `[javap]`. The wallet is opened through the `OraclePKI` provider (`Wallet`) and written through `oracle.security.pki.OracleWallet` `[javap]`.
+- `show` reports `Password: ******` when a password is saved and `Password: not saved` otherwise `[output]`.
+- `connect -save` without `-savepwd`, `clone -nopwd` and `clone -username` all write a 270-byte wallet with no password. A plain `clone` copies the password `[diff]` (`ops/02_save_nopwd`, `ops/39_clone_nopwd`, `ops/38_clone_user`, `ops/37_clone_plain`).
+
+### What Works Without Writing a Wallet
+
+- **Clone with password, rename, move, delete.** A wallet does not depend on the directory it sits in. A byte-for-byte copy of a SQLcl-written wallet worked under five other ids: `show` reported the password as saved, and `connect -name` connected with it `[round-trip]` (`idrt/02_read`). Rename, move and delete never touch the wallet `[diff]`.
+- **A connection without a password.** A byte-for-byte copy of a SQLcl-written 270-byte wallet, placed beside a Python-written `dbtools.properties`, was shown as `Password: not saved` `[round-trip]` (`props/01_show`). Reusing a wallet that Oracle software generated as a template is a licence question for the follow-up, not a solution this investigation adopts.
+- **Saving a new password, and `show --check-password` without SQLcl,** stay open. The remaining route is Oracle's own published wallet library (Phase 7), which is not yet assessed.

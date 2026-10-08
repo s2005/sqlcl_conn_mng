@@ -88,15 +88,15 @@ Requirements: REQ-4
 
 Requirements: REQ-6
 
-- [ ] Compare wallet sizes and hashes across the Phase 2 cases
-- [ ] Record secret aliases, algorithm names and format constants from `javap`
-- [ ] Build the structure analyser in `<scratch-root>/poc/` (offsets, lengths, names only)
-- [ ] Map the wallet layout
-- [ ] POC: Python-written empty wallet accepted by SQLcl
-- [ ] POC: Python-written wallet with the dummy password accepted by SQLcl
-- [ ] Apply the escalation gate if the layout cannot be mapped clean-room
-- [ ] Write the "credentials.sso" section of `findings.md` with the verdict
-- [ ] Phase 6 verification passes
+- [x] Compare wallet sizes and hashes across the Phase 2 cases
+- [x] Record secret aliases, algorithm names and format constants from `javap` (aliases and provider recorded; format constants not pursued, see blocker)
+- [!] Build the structure analyser in `<scratch-root>/poc/` (offsets, lengths, names only) - blocked: reverse-engineering the wallet obfuscation is not pursued
+- [!] Map the wallet layout - blocked, same reason
+- [!] POC: Python-written empty wallet accepted by SQLcl - blocked, same reason
+- [!] POC: Python-written wallet with the dummy password accepted by SQLcl - blocked, same reason
+- [!] Apply the escalation gate if the layout cannot be mapped clean-room - needs a user decision
+- [x] Write the "credentials.sso" section of `findings.md` with the verdict (blocked)
+- [!] Phase 6 verification passes - awaiting the user decision on the blocker
 
 ## Phase 7: Runtime Comparison
 
