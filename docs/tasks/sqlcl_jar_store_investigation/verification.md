@@ -166,5 +166,5 @@ The investigation can be accepted when all items are true:
 - [x] AC-5 - one row per store-writing operation in the "Operation effect map", each citing a diff - verified by: Phase 2 verification
 - [x] AC-6 - wallet verdict recorded: both POC wallets accepted, or a named blocker with evidence - verified by: Phase 6 verification
 - [x] AC-7 - runtime comparison table complete with one recommendation - verified by: Phase 7 verification
-- [ ] AC-8 - every claim in `findings.md` tagged, and the follow-up outline gives a verdict per command and names the follow-up task(s) - verified by: review of `findings.md` in Phase 8
-- [ ] AC-9 - no Oracle-derived file, wallet or snapshot tracked, no dummy password in the working tree, real stores untouched - verified by: Phase 8 verification
+- [x] AC-8 - every claim in `findings.md` tagged, and the follow-up outline gives a verdict per command and names the follow-up task(s) - verified by: review of `findings.md` in Phase 8
+- [x] AC-9 - no Oracle-derived file, wallet or snapshot tracked, no dummy password in the working tree, real stores untouched - verified by: Phase 8 verification

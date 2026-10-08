@@ -51,6 +51,10 @@ The stores, each started empty:
 | `names` | Name, folder and value validation, escaping and non-ASCII handling |
 | `chars` | One saved connection per special character |
 | `conc`, `conc2` | Concurrent writers |
+| `idrt` | Phase 3: Python-generated and rule-breaking ids |
+| `props` | Phase 4: Python-written `dbtools.properties` files and tolerance probes |
+| `fold`, `foldrt`, `fprobe_<probe>` | Phase 5: a SQLcl-written tree, a Python-written tree, and `folders.json` tolerance probes |
+| `nowallet` | Phase 6: connections without a wallet file, with a 0-byte wallet, and with `ojdbc.properties` |
 
 `<CS>` below is `probe@//localhost:1537/XEPDB1`; `-password "<PW>"` stands for the dummy password, which was substituted only on stdin.
 
@@ -139,7 +143,7 @@ Validation rules:
 
 ### Case-Insensitive Lookup Defects
 
-Three operations find a connection by name case-insensitively and act on the first match, which is the first connection directory in enumeration order. On NTFS that order is the case-insensitive order of the ids. Three of three observations agree `[diff]`:
+Two operations, `rename -conn` and `delete -folder -force`, find a connection by name case-insensitively and act on the first match, which is the first connection directory in enumeration order. On NTFS that order is the case-insensitive order of the ids. Three of three observations agree `[diff]`:
 
 - `rename -conn c1 c1r` with both `c1` (`ID01`, in `/dev/local`) and `C1` (`ID03`, at `/`) saved renamed **`C1`**, then replaced `ID01` with `ID03` in `/dev/local`. The output still said `Connection c1 has been renamed` (`ops/17_rename_conn`).
 - `rename -conn x1 y1` with `x1` and `X1` saved renamed the right connection, because its id came first (`case/07_rename_lower`).
@@ -149,7 +153,7 @@ Three operations find a connection by name case-insensitively and act on the fir
 
 ### Atomicity
 
-- No temporary, backup or lock file appeared in a connection directory or in `connection_folders/` during any capture `[diff]` (the 2 ms watcher found only the `sqlcl/aliases.xml.bak_<n>` files).
+- No temporary, backup or lock file appeared in a connection directory or in `connection_folders/` during any capture: the 2 ms watcher reported no transient file at all `[diff]`. The `sqlcl/aliases.xml.bak_<n>` files are persistent, not temporary.
 - `folders.json` is read and rewritten in place with `Files.write`; the serializer also calls `Files.createDirectories` and `Files.createFile`, and no rename or lock call `[javap]` (`FolderSerializer` method references).
 - Concurrent writers lose updates. Two processes each adding 10 folders kept all 20, but three processes each adding 60 kept 123 of 180, while all 180 commands printed `has been added` `[diff]` (`conc`, `conc2`). There is no locking, so a reader or a second writer can see or overwrite a stale tree.
 
@@ -189,9 +193,9 @@ In the store `idrt`, SQLcl saved one connection, `seed`, with a password. A Pyth
 
 Results:
 
-- `connmgr list` showed `pyid` under `f` and the other five at `/`; `connmgr show` printed all six with `Password: ******`; `connect -name pyid` and `connect -name badlast` each connected with the saved password, and `select user from dual` returned `PROBE` (`idrt/02_read`) `[round-trip]`.
+- `connmgr list` showed `pyid` under `f` and the other five at `/`; `connmgr show` printed all five copies with `Password: ******`; `connect -name pyid` and `connect -name badlast` each connected with the saved password, and `select user from dual` returned `PROBE` (`idrt/02_read`) `[round-trip]`.
 - `rename -conn pyid pyid2`, `move -conn pyid2 /`, `clone -original pyid2 pyc` (the clone carried the password, 426 bytes) and `delete -conn pyid2` all worked on the Python-made id, and `delete -conn bad23` removed the 23-character directory (`idrt/03_rename` to `idrt/07_delete_bad23`) `[round-trip]`.
-- SQLcl does not validate the directory name at all: any directory under `connections/` holding a `dbtools.properties` is a connection. The wallet does not depend on the directory it sits in, since a copied wallet worked under five different ids `[round-trip]`.
+- SQLcl does not validate the directory name at all: any directory under `connections/` holding a `dbtools.properties` is a connection. The wallet does not depend on the directory it sits in: the copied wallet was reported as saved under five ids, and connected under the two that were tried `[round-trip]`.
 - `sqlcl-conn-mng list` showed only `badlast`, `pyc` and `seed` from that store, because `src/sqlcl_conn_mng/store.py:21` accepts only names of exactly 22 characters from the URL-safe alphabet. A store holding a directory SQLcl lists but the tool skips can only come from a writer other than SQLcl; this is recorded for the follow-up, and the tool is not changed here `[round-trip]`.
 
 A SQLcl-free writer should generate ids by the rule above, which SQLcl accepts like its own.
@@ -210,9 +214,9 @@ A SQLcl-free writer should generate ids by the rule above, which SQLcl accepts l
 | -------- | ----- | -------- |
 | Header | none: no comment line and no timestamp | `[diff]` every SQLcl-written file |
 | Line | `key=value`, no spaces around `=` | `[diff]` |
-| Line ending | LF, also on Windows | `[diff]` `line_ending` is `LF` in every snapshot |
-| Last line | ends with LF | `[diff]` `trailing_newline` is true in every snapshot |
-| Encoding | UTF-8; non-ASCII characters are written as raw UTF-8 bytes, never as `\uXXXX` | `[diff]` `names/21_nonascii_cp1252`: `café1` stored as the bytes `C3 A9` for `é` |
+| Line ending | LF, also on Windows | `[diff]` `line_ending` is `LF` for every SQLcl-written file |
+| Last line | ends with LF | `[diff]` `trailing_newline` is true for every SQLcl-written file |
+| Encoding | UTF-8; non-ASCII characters are written as raw UTF-8 bytes, never as `\uXXXX` | `[diff]` the SQLcl-written files for `café1` (`names/21_nonascii_cp1252`) and `über1` hold raw UTF-8, and a UTF-8 writer without `\u` escapes reproduces them byte for byte (see "Properties Round Trip") |
 | Escaping in values | `\` as `\\`; `:` `=` `#` `!` with a leading `\`; a leading space as a backslash followed by the space; inner and trailing spaces unescaped; tab, newline, carriage return and form feed as `\t` `\n` `\r` `\f` | `[diff]` `names/03_name_leading_space` (`name=\ lead`), `names/06_cs_descriptor` (`\=` throughout the descriptor), `names/07_clone_user_specials` (`userName=u\:s\=e\#r\!\\x y`), `ops/01_save_pwd` (`//localhost\:1537/XEPDB1`); the control characters follow from `Properties.store` `[javap]`, since SQLcl's input cannot carry them |
 | Escaping in keys | as in values, plus every space as a backslash followed by the space; the keys SQLcl writes contain none of these | `[javap]` |
 
@@ -367,3 +371,51 @@ Implement every catalog operation in pure Python, by the rules in this document,
 A user without SQLcl can then manage the whole catalog and save connections without passwords. Only saving or checking a password, and testing a connection, need SQLcl, which the tool already detects through `--sqlcl`, `SQLCL_BIN` or `PATH`.
 
 One observation could shrink the `show --check-password` case. In SQLcl 25.4.1, all 43 wallets SQLcl wrote without a password in the `ops`, `case`, `imp`, `names`, `chars` and `fold` stores were exactly 270 bytes, and the 3 holding the dummy password were 426 bytes `[diff]`. File size is not a documented signal, and only one password length and one SQLcl version were seen. The follow-up should treat a size rule as a candidate that needs cross-version checks, not as a specification.
+
+## Follow-Up
+
+### Verdict per Command
+
+The verdicts below apply the recommendation above. "Fallback runtime" means Python + JRE + `oraclepki`, which the decisions in force exclude, so no command is assigned to it.
+
+| `sqlcl-conn-mng` command | Verdict | Basis in this document |
+| ------------------------ | ------- | ---------------------- |
+| `list` | feasible without SQLcl (already) | read path; see "Connection Id" for the directory-name gap |
+| `show` | feasible without SQLcl (already) | read path |
+| `show --check-password` | feasible without SQLcl when the connection has no `credentials.sso` (no password); still needs SQLcl when a wallet exists | "Wallet-Free Alternatives", "Runtime Comparison" |
+| `folders` | feasible without SQLcl (already) | read path; "folders.json" |
+| `export` | feasible without SQLcl (already) | read path |
+| `add --no-save-password` | feasible without SQLcl: write `dbtools.properties` in save order and no wallet. SQLcl's connect-before-save check is lost (`open_questions.md`, Q5) | "dbtools.properties", "Connection Id", "Wallet-Free Alternatives" |
+| `add` saving a password, including `--replace` | still needs SQLcl | "credentials.sso", Q10 |
+| `add --replace --no-save-password` | feasible without SQLcl: rewrite `dbtools.properties` and remove `credentials.sso`, keeping the id, as SQLcl's `-replace` without `-savepwd` drops the password | "Effects per Operation" |
+| `delete` | feasible without SQLcl: remove `connections/<id>/` and the id from `folders.json` | "Effects per Operation" |
+| `rename` | feasible without SQLcl: rewrite `name` in `dbtools.properties`, keep the id and the wallet | "Effects per Operation", "Key Order" |
+| `move` | feasible without SQLcl: edit `folders.json` only | "folders.json" |
+| `clone` | feasible without SQLcl: new id; copy `credentials.sso` byte for byte to keep the password, or write no wallet for `--no-password` and `--user`, as SQLcl drops the password in both cases | "Effects per Operation", "What Works Without Writing a Wallet" |
+| `add-folder` | feasible without SQLcl | "folders.json", folder-name rule in "Validation and Output" |
+| `delete-folder`, with and without `--force` | feasible without SQLcl | "Effects per Operation" |
+| `test` | still needs SQLcl; python-oracledb is the candidate replacement (Q5) | out of scope |
+
+### Rules the SQLcl-Free Writer Must Follow
+
+- Generate ids as 16 random bytes in URL-safe Base64 without padding ("Connection Id").
+- Write `dbtools.properties` with the escaping, key order, LF endings, final LF and raw UTF-8 of "dbtools.properties"; write files as bytes so Windows does not add CR.
+- Write `folders.json` compact, siblings sorted by UTF-16 code units, ids appended, all three keys present, no final newline ("folders.json"). Never list an id twice.
+- Apply SQLcl's name rules: case-sensitive uniqueness, the connection-name character rule, and the folder-name rule ("Validation and Output").
+- Resolve names case-sensitively, and refuse an ambiguous name instead of guessing ("Case-Insensitive Lookup Defects").
+- Replace `folders.json` atomically (write a temporary file, then rename) and serialize the tool's own writers. SQLcl itself takes no lock, so a SQLcl process running at the same time can still lose an update ("Atomicity").
+- Never write a 0-byte or reconstructed wallet, and never store a password outside the wallet (Q10).
+
+### Follow-Up Tasks
+
+| Task | Scope |
+| ---- | ----- |
+| `sqlcl_free_catalog_writes` | Implement every "feasible without SQLcl" row above in pure Python. Keep SQLcl, made optional, for password saves, `show --check-password` with a wallet present, and `test`. Update `README.md` "Store format" from this document, and bump the version if any input parameter changes |
+| `store_id_directory_rule` | Decide whether `src/sqlcl_conn_mng/store.py:21` should list every directory SQLcl lists (any name holding a `dbtools.properties`), not only 22-character ids ("Id Round Trip") |
+| `sqlcl_stdin_encoding` | `src/sqlcl_conn_mng/sqlcl.py` exchanges text with SQLcl in one encoding, but SQLcl reads stdin in the Windows ANSI code page and writes stdout in UTF-8 ("Validation and Output"); non-ASCII values may be stored or parsed garbled |
+
+Deferred items:
+
+- Connectivity without SQLcl through python-oracledb (Q5).
+- Cross-version checks of every rule here on SQLcl releases after 25.4.1 (Q8), including the wallet-size observation in "Runtime Comparison".
+- The rest of the `PropertyNames` keys (proxy, OCI and URL connections), which no capture produced.

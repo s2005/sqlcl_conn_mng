@@ -113,9 +113,9 @@ Requirements: REQ-7
 
 Requirements: REQ-8, REQ-9
 
-- [ ] Review `findings.md`: every claim tagged, contradictions resolved
-- [ ] Write the "Follow-up" section with a verdict per command and the follow-up task(s)
-- [ ] Remove the non-shippable POC: delete `<scratch-root>/poc/`, `<scratch-root>/javap/` and wallet-holding scratch stores
-- [ ] Stop the podman Oracle container if this task started it
-- [ ] Run the AC-9 hygiene checks
-- [ ] Phase 8 verification passes
+- [x] Review `findings.md`: every claim tagged, contradictions resolved
+- [x] Write the "Follow-up" section with a verdict per command and the follow-up task(s)
+- [x] Remove the non-shippable POC: delete `<scratch-root>/poc/`, `<scratch-root>/javap/` and wallet-holding scratch stores
+- [x] Stop the podman Oracle container if this task started it
+- [x] Run the AC-9 hygiene checks
+- [x] Phase 8 verification passes
