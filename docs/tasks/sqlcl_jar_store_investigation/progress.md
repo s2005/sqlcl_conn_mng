@@ -77,12 +77,12 @@ Requirements: REQ-3
 
 Requirements: REQ-4
 
-- [ ] Record shape, keys, ordering, indentation, encoding and absent-file behaviour
-- [ ] Probe tolerance: dangling id, duplicate id, empty versus missing `connections`, unknown keys, compact JSON
-- [ ] Record the serializer in use
-- [ ] Round trip a Python-written nested tree and byte-compare it
-- [ ] Write the "folders.json" section of `findings.md`
-- [ ] Phase 5 verification passes
+- [x] Record shape, keys, ordering, indentation, encoding and absent-file behaviour
+- [x] Probe tolerance: dangling id, duplicate id, empty versus missing `connections`, unknown keys, compact JSON
+- [x] Record the serializer in use
+- [x] Round trip a Python-written nested tree and byte-compare it
+- [x] Write the "folders.json" section of `findings.md`
+- [x] Phase 5 verification passes
 
 ## Phase 6: credentials.sso Wallet Discovery and POC
 

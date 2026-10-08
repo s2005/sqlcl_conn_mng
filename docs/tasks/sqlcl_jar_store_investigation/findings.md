@@ -175,7 +175,7 @@ A Python equivalent is `base64.urlsafe_b64encode(secrets.token_bytes(16)).rstrip
 | `clone` | new random id for the clone; the original keeps its id (`ops/37_clone_plain`, `idrt/05_clone`) `[diff]` |
 | `import -duplicates REPLACE` | new random id; the old connection is kept beside it (`imp/04_import_dup_replace`) `[diff]` |
 
-### Round Trip
+### Id Round Trip
 
 In the store `idrt`, SQLcl saved one connection, `seed`, with a password. A Python script then copied its directory byte for byte to five new directories and changed only the `name=` line of each `dbtools.properties`. It also wrote a `folders.json` listing the first copy in `/f`:
 
@@ -233,7 +233,7 @@ A SQLcl-free writer should generate ids by the rule above, which SQLcl accepts l
 - A file SQLcl reads and writes back (rename, clone) gets the iteration order of the `Properties` object it was loaded into. On Java 17 that is a `ConcurrentHashMap` with a 16-slot table, so the keys come out by bucket index of their spread `String.hashCode`. For the four standard keys this happens to be alphabetical, `connectionString, name, type, userName`. For an imported connection it is `port, name, host, type, serviceName, userName`, not alphabetical. The Python prediction matched both observations `[diff]` (`ops/37_clone_plain`, `imp/06_rename_imported`).
 - SQLcl does not depend on key order when reading. A Python file with the keys reversed was listed and shown normally `[round-trip]` (`props/01_show`, `tol_reorder`).
 
-### Round Trip and Byte Comparison
+### Properties Round Trip
 
 A Python prototype, kept in `<scratch-root>/poc/` and not committed, writes ordered key-value pairs with the escaping above, with no header, LF endings, a final LF and UTF-8.
 
@@ -243,7 +243,7 @@ A Python prototype, kept in `<scratch-root>/poc/` and not committed, writes orde
   - `rt_specials`: the name `rt sp:e=c!` with one leading space, the descriptor connect string, and the user `u:s=e#r!\x y`.
   - `rt_nonascii`: the name `rt_café` and the user `über`.
 
-### Tolerance
+### Properties Read Tolerance
 
 Each probe below was written from Python and read by SQLcl; `connmgr show` printed the expected values for each `[round-trip]` (`props/01_show`, `props/02_show_nonascii`). Renaming a probe made SQLcl rewrite it in its own format (`props/03_rename_extra` to `props/06_rename_uesc`):
 
@@ -257,3 +257,47 @@ Each probe below was written from Python and read by SQLcl; `connmgr show` print
 | Non-ASCII name written as `é` | yes, `show "tol_uésc"` found it | written back as raw UTF-8 |
 
 A SQLcl-free writer can use the prototype's rules as is. Read tolerance means a stricter or looser reader on either side is harmless.
+
+## folders.json
+
+### Serializer
+
+`FolderSerializer` (in `dbtools-common.jar`) builds a Jackson-jr `JSON` object with `JSON.builder()`, `enable` and `disable`. It serializes with `JSON.asString` and parses with `JSON.beanFrom`, reads with `Files.readString`, and writes with `Files.write(Path, byte[])`. Its path constants are `connection_folders` and `folders.json` `[javap]`.
+
+### Schema
+
+| Property | Value | Evidence |
+| -------- | ----- | -------- |
+| Location | `<store>/connection_folders/folders.json` | `[diff]` `ops/07_folder_add_top` |
+| Top level | an object with the single key `folders`; the root folder has no object of its own | `[diff]` every capture |
+| Folder object | keys `name`, `connections`, `folders`, always all three, in that order | `[diff]` |
+| `connections` | connection ids; a moved or added id is appended at the end | `[diff]` `fold/02_moves`: `f2` moved before `f1` is listed first |
+| `folders` | child folder objects, sorted by name in Java `String` order (UTF-16 code units: uppercase before lowercase, `A10` before `A2`), at every level | `[diff]` all 123 folders of `conc2`, and the `fold`, `names` and `conc` trees |
+| Whitespace | none: compact JSON | `[diff]` |
+| Final newline | none | `[diff]` `trailing_newline` is false in every snapshot |
+| Encoding | UTF-8; non-ASCII written raw, `\` as `\\`, `<` and `>` unescaped | `[diff]` `names/21_nonascii_cp1252`, `fold/01_build`, `fold/02_moves` |
+| No folders left | `{"folders":[]}`; the file is kept | `[diff]` `ops/52_folder_delete_DEV` |
+| File absent | created by the first `add -folder` or `rename -conn`; not created by `connect -save`, `clone` or `import` | `[diff]` `ops/07_folder_add_top`, `props/03_rename_extra`, `ops/01_save_pwd`, `names/07_clone_user_specials`, `imp/01_import` |
+
+### Folders Read Tolerance
+
+Each probe was written from Python into a copy of the `fold` connections, then SQLcl ran `connmgr list` and `connmgr add -folder /zz`; the second command makes SQLcl rewrite the file (`fprobe_<probe>/01_list_add`) `[round-trip]`:
+
+| Probe | `connmgr list` | File after the rewrite |
+| ----- | -------------- | ---------------------- |
+| A dangling id (no connection directory) in a folder | lists the raw id as if it were a connection name | dangling id kept |
+| The same id in two folders | fails: `Duplicate connection found, please make sure the connection name is unique`; `add -folder` fails the same way | unchanged; every folder command fails until the file is fixed |
+| Folder objects without `connections` or `folders` | works | the missing keys are added as `[]` |
+| Unknown keys at the top level and in a folder | works | unknown keys dropped |
+| Folders out of order | lists them sorted | rewritten sorted |
+| A top-level `connections` list | ignored; the connection is at `/` because no folder lists it | key dropped |
+| Indented JSON with CRLF and a final newline | works | rewritten compact, no newline |
+| An empty file | works, no folders | rewritten as a normal document |
+| Truncated, invalid JSON | fails with the Jackson parse error `Unexpected end-of-input within/between Object entries` | unchanged; `add -folder` fails the same way |
+
+### Folders Round Trip
+
+- **Byte comparison.** A Python prototype in `<scratch-root>/poc/`, not committed, renders a tree given as `{path: [ids]}` with siblings sorted by UTF-16 code units, compact separators, raw UTF-8 and no final newline. It was given the tree that SQLcl built in `fold/01_build` and `fold/02_moves`, which has seven folders, a `back\slash` name, a `lt<gt>` name, and two ids in move order. The output was byte-identical to SQLcl's file (465 bytes each) `[diff]`, so there are no differences to list.
+- **SQLcl and the tool read the Python file.** The prototype wrote a different nested tree into the store `foldrt`: `/empty`, `/ops` holding `f3`, `/team/a/b` holding `f1`, and `/team/c` holding `f2`. `connmgr list` drew exactly that tree (`foldrt/01_list`). `sqlcl-conn-mng folders --format json` and `sqlcl-conn-mng list` reported the same folders and the same folder for each connection `[round-trip]`.
+
+A SQLcl-free writer must never list one id in two folders. SQLcl does not repair such a file, and it refuses every folder command until the file is fixed.
