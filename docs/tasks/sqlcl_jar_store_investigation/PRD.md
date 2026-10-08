@@ -63,7 +63,7 @@ Compare the two runtimes the follow-up implementation could use for wallet opera
 
 ### REQ-8: Findings and follow-up task outline
 
-`findings.md` in this task folder holds the specification. Every claim carries its evidence tag: `[diff]` (captured store diff), `[javap]` (class signature or constant), `[round-trip]` (Python-written file accepted by SQLcl), or `[decompile]` (only if the Q1 escalation gate was passed). The final section is a follow-up outline that lists every `sqlcl-conn-mng` command with a verdict - feasible without SQLcl, feasible with the fallback runtime, or still needs SQLcl - and names the follow-up implementation task(s).
+`findings.md` in this task folder holds the specification. Every claim carries its evidence tag: `[diff]` (captured store diff), `[javap]` (class signature or constant), `[round-trip]` (Python-written file accepted by SQLcl), `[structure]` (safe dummy-wallet structural probes), `[standard]` (linked public specifications/documentation), or `[decompile]` (only if the Q1 escalation gate was passed). The final section is a follow-up outline that lists every `sqlcl-conn-mng` command with a verdict - feasible without SQLcl, feasible with the fallback runtime, or still needs SQLcl - and names the follow-up implementation task(s).
 
 ### REQ-9: Clean-room and secret hygiene
 

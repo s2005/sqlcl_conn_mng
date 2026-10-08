@@ -94,15 +94,15 @@ Reopened on 2026-10-08 by the user's request to complete password saving with ob
 - [x] Build standard-library Python empty and password-bearing wallet POCs in scratch only
 - [x] Confirm SQLcl password state and saved-name database login
 - [x] Reassess runtime recommendation and follow-up outline from the new evidence
-- [ ] Run full gates, clean scratch secrets, and commit the renewed findings
+- [x] Run full gates, clean scratch secrets, and commit the renewed findings
 
 - [x] Compare wallet sizes and hashes across the Phase 2 cases
-- [x] Record secret aliases, algorithm names and format constants from `javap` (aliases and provider recorded; format constants not pursued, see blocker)
+- [x] Record aliases/provider from `javap` and algorithms/format discriminators from renewed safe structure probes
 - [x] Build the structure analyser in `<scratch-root>/poc/` - renewed clean-room structure probes completed
 - [x] Map the wallet layout - wrapper, DER payload and Oracle localKeyId discriminators verified
 - [x] POC: Python-written empty wallet accepted by SQLcl - fresh 270-byte wallet recognized
 - [x] POC: Python-written wallet with the dummy password accepted by SQLcl - two fresh wallets logged in by saved name
-- [x] Apply the escalation gate if the layout cannot be mapped clean-room - not taken; recorded in `open_questions.md` Q1, `notes.md` D3
+- [x] Apply the escalation gate if needed - renewed layout mapped clean-room; no decompilation needed
 - [x] Write the "credentials.sso" section of `findings.md` with the renewed verdict (accepted)
 - [x] Black-box test of wallet-free alternatives: no wallet file, 0-byte wallet, `ojdbc.properties` password
 - [x] Phase 6 verification passes - renewed verdict: accepted; plaintext remains rejected (Q10)
@@ -113,7 +113,7 @@ Requirements: REQ-7
 
 - [x] Cost the pure-Python runtime
 - [x] Cost the Python + JRE + Maven Central `oraclepki` runtime
-- [-] Prove the JRE call sequence hands-on if Phase 6 was blocked - not applicable: third-party product runtime ruled out by the user (`notes.md` D1). Installed Oracle APIs were used only as readers for the renewed Python POC
+- [-] Prove the JRE writer sequence if Phase 6 was blocked - not applicable: renewed Python POC accepted. Installed Oracle APIs served only as diagnostic readers; no JRE writer runtime was added
 - [x] Write the "Runtime comparison" section of `findings.md` with one recommendation
 - [x] Phase 7 verification passes
 
@@ -127,3 +127,16 @@ Requirements: REQ-8, REQ-9
 - [x] Stop the podman Oracle container if this task started it
 - [x] Run the AC-9 hygiene checks
 - [x] Phase 8 verification passes
+
+## Renewed Completion Evidence
+
+- [x] Empty and two fully independent password wallets accepted by SQLcl 25.4.1; two saved-name logins returned the dummy user
+- [x] Seven additional password-value round trips and SQLcl presence checks passed
+- [x] Probe snapshots/diff and the application listing worked on the fresh store
+- [x] Full suite: 93 passed, 1 integration test deselected by the existing project configuration
+- [x] Ruff lint/format, both mypy targets, Markdown lint and Git diff checks passed
+- [x] Dummy password and its Base64 absent from tracked/untracked repository files and snapshots; no forbidden tracked binary or snapshot
+- [x] Repository store and environment files unchanged; user-home store never targeted
+- [x] New dummy schema dropped, previously stopped container stopped again, all renewal scratch code/wallets/secrets removed
+
+The completed result is the investigation and verified format specification. Production catalog/wallet code remains the explicitly identified follow-up task. The conditional standalone JRE writer experiment is not applicable because the Python POC succeeded.

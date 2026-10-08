@@ -172,3 +172,24 @@ The investigation can be accepted when all items are true:
 - [x] AC-7 - runtime comparison table complete with one recommendation - verified by: Phase 7 verification
 - [x] AC-8 - every claim in `findings.md` tagged, and the follow-up outline gives a verdict per command and names the follow-up task(s) - verified by: review of `findings.md` in Phase 8
 - [x] AC-9 - no Oracle-derived file, wallet or snapshot tracked, no dummy password in the working tree, real stores untouched - verified by: Phase 8 verification
+
+## Renewed Final Verification (2026-10-08)
+
+| Check | Observed result |
+| ----- | --------------- |
+| Python wallet generation without template/Oracle-library reads | Three distinct fresh wallets: 270, 426, 426 bytes |
+| SQLcl empty/saved state | Expected no-password state and two saved states |
+| Saved-name live login | Two `select user from dual` results were `WALLET_PROBE` |
+| Additional secret-value coverage | Seven exact round trips; seven SQLcl alias-presence checks; no wallet errors |
+| AES known-answer checks | AES-128 and AES-256 examples passed |
+| Snapshot/diff harness | Baseline/fresh snapshots and diff completed; snapshots held no dummy credential or encoded credential |
+| Application read | Listed all three independently written fresh connections |
+| Full pytest suite | 93 passed, 1 deselected by existing integration marker configuration |
+| Ruff lint and format | Clean; 16 files formatted |
+| mypy source and probe targets | Clean; 7 source files and the probe script |
+| Markdown lint | Clean, 10 task documents |
+| Repository hygiene | No dummy credential or its Base64 in tracked/untracked files; no tracked jar/class/Java/wallet/snapshot |
+| Protected inputs | No repository-store or root environment file modified since renewal start; every SQLcl call used scratch `-home`; home store not inspected |
+| Cleanup | Newly created `WALLET_PROBE` schema dropped; container returned to stopped state; renewal directory, POC code, extracted secret files, wallets and Java temporary directory removed |
+
+AC-6 is now satisfied by the accepted-wallet branch, replacing the historical named-blocker branch. AC-7 and AC-8 reflect pure-Python password feasibility; AC-9 was freshly checked. AC-1 to AC-5 retain their earlier completed metadata evidence; no metadata implementation changed. All acceptance criteria remain checked, with no outstanding investigation phase. Production permissions, atomic writes, malformed-wallet behavior and non-Windows qualification are explicitly follow-up work, not claimed as shipped.

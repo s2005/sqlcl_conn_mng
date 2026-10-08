@@ -412,46 +412,53 @@ Do not infer password presence from file size: the renewed probes produced passw
 
 ### Verdict per Command
 
-The verdicts below apply the recommendation above. "Fallback runtime" means Python + JRE + `oraclepki`, which the decisions in force exclude, so no command is assigned to it.
+These are feasibility verdicts for the follow-up implementation, not a claim that the current CLI has changed. The supported wallet is the ordinary SQLcl 25.4.1 database-password format proved above `[round-trip]` (`fresh`, `edges`).
 
-| `sqlcl-conn-mng` command | Verdict | Basis in this document |
-| ------------------------ | ------- | ---------------------- |
-| `list` | feasible without SQLcl (already) | read path; see "Connection Id" for the directory-name gap |
-| `show` | feasible without SQLcl (already) | read path |
-| `show --check-password` | feasible without SQLcl when the connection has no `credentials.sso` (no password); still needs SQLcl when a wallet exists | "Wallet-Free Alternatives", "Runtime Comparison" |
-| `folders` | feasible without SQLcl (already) | read path; "folders.json" |
-| `export` | feasible without SQLcl (already) | read path |
-| `add --no-save-password` | feasible without SQLcl: write `dbtools.properties` in save order and no wallet. SQLcl's connect-before-save check is lost (`open_questions.md`, Q5) | "dbtools.properties", "Connection Id", "Wallet-Free Alternatives" |
-| `add` saving a password, including `--replace` | still needs SQLcl | "credentials.sso", Q10 |
-| `add --replace --no-save-password` | feasible without SQLcl: rewrite `dbtools.properties` and remove `credentials.sso`, keeping the id, as SQLcl's `-replace` without `-savepwd` drops the password | "Effects per Operation" |
-| `delete` | feasible without SQLcl: remove `connections/<id>/` and the id from `folders.json` | "Effects per Operation" |
-| `rename` | feasible without SQLcl: rewrite `name` in `dbtools.properties`, keep the id and the wallet | "Effects per Operation", "Key Order" |
-| `move` | feasible without SQLcl: edit `folders.json` only | "folders.json" |
-| `clone` | feasible without SQLcl: new id; copy `credentials.sso` byte for byte to keep the password, or write no wallet for `--no-password` and `--user`, as SQLcl drops the password in both cases | "Effects per Operation", "What Works Without Writing a Wallet" |
-| `add-folder` | feasible without SQLcl | "folders.json", folder-name rule in "Validation and Output" |
-| `delete-folder`, with and without `--force` | feasible without SQLcl | "Effects per Operation" |
-| `test` | still needs SQLcl; python-oracledb is the candidate replacement (Q5) | out of scope |
+| `sqlcl-conn-mng` command | Verdict | Evidence |
+| ------------------------ | ------- | -------- |
+| `list` | feasible without SQLcl, already implemented | Existing read path; id rule `[round-trip]` |
+| `show` | feasible without SQLcl, already implemented | Existing read path `[round-trip]` |
+| `show --check-password` | feasible without SQLcl for the supported wallet after validated parsing; missing wallet means no saved secret | Alias recognition and exact secret recovery `[round-trip]` (`fresh`, `edges`) |
+| `folders` | feasible without SQLcl, already implemented | Python nested-folder round trip `[round-trip]` |
+| `export` | feasible without SQLcl, already implemented | Existing metadata read path; properties/folders round trips `[round-trip]` |
+| `add --no-save-password` | feasible without SQLcl; write properties and an empty wallet, or omit the wallet | Empty generated wallet and original no-wallet probe `[round-trip]` |
+| `add` saving a password | feasible without SQLcl for the supported format | Two independently generated wallets logged in by saved name `[round-trip]` (`fresh`) |
+| `add --replace` | feasible without SQLcl for the supported format; preserve id and atomically replace credentials; protect unknown entries | Independent writer `[round-trip]` and replace behavior `[diff]` (`ops/05_save_replace_nopwd`, `ops/06_save_replace_pwd`) |
+| `add --replace --no-save-password` | feasible without SQLcl; replace password wallet with an empty wallet or remove it, retaining id | Empty writer `[round-trip]`; original replace effects `[diff]` |
+| `delete` | feasible without SQLcl; remove the connection directory and folder references | Original operation captures `[diff]` |
+| `rename` | feasible without SQLcl; update properties, preserve id/wallet | Properties round trip `[round-trip]`; operation effects `[diff]` |
+| `move` | feasible without SQLcl; update folder references only | Folders round trip `[round-trip]`; operation effects `[diff]` |
+| `clone` | feasible without SQLcl; new id, preserve wallet by copying, or generate empty wallet when dropping the password | Copied wallet login and generated empty wallet `[round-trip]`; clone effects `[diff]` |
+| `add-folder` | feasible without SQLcl | Folders round trip `[round-trip]` |
+| `delete-folder`, including `--force` | feasible without SQLcl | Original operation captures `[diff]` |
+| `test` | still needs SQLcl or a database driver | Connectivity excluded by Q5; the wallet writer performs no database I/O |
 
-### Rules the SQLcl-Free Writer Must Follow
+### Implementation Rules
 
-- Generate ids as 16 random bytes in URL-safe Base64 without padding ("Connection Id").
-- Write `dbtools.properties` with the escaping, key order, LF endings, final LF and raw UTF-8 of "dbtools.properties"; write files as bytes so Windows does not add CR.
-- Write `folders.json` compact, siblings sorted by UTF-16 code units, ids appended, all three keys present, no final newline ("folders.json"). Never list an id twice.
-- Apply SQLcl's name rules: case-sensitive uniqueness, the connection-name character rule, and the folder-name rule ("Validation and Output").
-- Resolve names case-sensitively, and refuse an ambiguous name instead of guessing ("Case-Insensitive Lookup Defects").
-- Replace `folders.json` atomically (write a temporary file, then rename) and serialize the tool's own writers. SQLcl itself takes no lock, so a SQLcl process running at the same time can still lose an update ("Atomicity").
-- Never write a 0-byte or reconstructed wallet, and never store a password outside the wallet (Q10).
+The metadata rules are backed by the original operation diffs and text-file round trips `[diff]` `[round-trip]`:
+
+- Generate ids from 16 random bytes in URL-safe Base64 without padding.
+- Write properties using the documented escaping/order, raw UTF-8, LF endings and final LF; use byte writes on Windows.
+- Write compact folders JSON with all keys, siblings sorted by UTF-16 code units and ids in insertion order. Never assign one id twice.
+- Apply case-sensitive uniqueness and the observed name rules. Reject ambiguous lookup.
+- Replace files atomically and serialize this tool's writers; SQLcl itself does not share a writer lock.
+
+The renewed wallet rules come from `fresh`, `edges`, and controlled attribute tests `[structure]` `[round-trip]`:
+
+- Generate the supported wallet independently using the verified wrapper, encrypted SafeContents, localKeyId discriminators and MAC; never use a distributed Oracle wallet template.
+- Generate new internal password, wrapper key, encryption/MAC salts, CBC IV and opaque localKeyId fields on each write.
+- Keep the database password's Base64 only inside encryption. Never put a password in `ojdbc.properties`, properties output, logs, or process arguments.
+- Determine presence by verified parsing and the exact database-password alias, not wallet size.
+- Preserve or explicitly reject unsupported wallets and unrelated credential entries; do not silently replace them.
+
+Production requirements: strict length/DER/algorithm checks, padding and MAC verification, atomic writes, secret-free error messages, restrictive POSIX permissions and Windows ACLs, and corrupted/unsupported-wallet tests. Those requirements still need implementation and acceptance; scratch compatibility tests do not certify them `[standard]` (Oracle auto-login permission guidance), `[round-trip]` (limits of this POC).
 
 ### Follow-Up Tasks
 
 | Task | Scope |
 | ---- | ----- |
-| `sqlcl_free_catalog_writes` | Implement every "feasible without SQLcl" row above in pure Python. Keep SQLcl, made optional, for password saves, `show --check-password` with a wallet present, and `test`. Update `README.md` "Store format" from this document, and bump the version if any input parameter changes |
-| `store_id_directory_rule` | Decide whether `src/sqlcl_conn_mng/store.py:21` should list every directory SQLcl lists (any name holding a `dbtools.properties`), not only 22-character ids ("Id Round Trip") |
-| `sqlcl_stdin_encoding` | `src/sqlcl_conn_mng/sqlcl.py` exchanges text with SQLcl in one encoding, but SQLcl reads stdin in the Windows ANSI code page and writes stdout in UTF-8 ("Validation and Output"); non-ASCII values may be stored or parsed garbled |
+| `sqlcl_free_catalog_writes` | Implement metadata catalog operations and the verified pure-Python wallet writer/reader. Cover empty/password saves, replacement, clone and password-presence checks; keep SQLcl optional for connectivity/unsupported formats. Add corruption, permission, atomicity and secret-output tests. Update README store-format/runtime descriptions and document any changed parameters |
+| `store_id_directory_rule` | Decide whether to match SQLcl's tolerant directory enumeration instead of restricting reads to 22-character ids, based on the original id round trip |
+| `sqlcl_stdin_encoding` | Correct the optional SQLcl adapter's Windows input/output encoding split, based on original non-ASCII probes |
 
-Deferred items:
-
-- Connectivity without SQLcl through python-oracledb (Q5).
-- Cross-version checks of every rule here on SQLcl releases after 25.4.1 (Q8), including the wallet-size observation in "Runtime Comparison".
-- The rest of the `PropertyNames` keys (proxy, OCI and URL connections), which no capture produced.
+Deferred qualification: Linux/macOS runs and permissions, other SQLcl versions, old/local/proxy/certificate wallets, remaining connection-property types, and connectivity through a separately selected driver. No follow-up product implementation was added by this investigation `[round-trip]` (Windows SQLcl 25.4.1 acceptance scope).

@@ -1,6 +1,8 @@
 # Notes: Spec Drift Found During Phase 6
 
-Phase 6 ended with the pure-Python wallet blocked, and on 2026-10-08 the user ruled out both third-party libraries and plain-text password storage. Parts of the task specification no longer match the decisions in force.
+The first investigation pass ended with the pure-Python wallet blocked, and on 2026-10-08 the user ruled out both third-party libraries and plain-text password storage. Parts of the task specification no longer match the decisions in force.
+
+D1-D3 and Solution 01 describe the first pass. D4-D5 and Solution 04 supersede the wallet blocker following the user's renewed request.
 
 ## Drifts
 
@@ -31,6 +33,12 @@ Use dummy-wallet structure observations, public cryptographic standards and SQLc
 - **Spec**: `PRD.md`, REQ-6, and `implementation_plan.md`, Phase 6: the phase ends with a Python-written wallet accepted by SQLcl, or with a named blocker.
 - **Decision**: the investigation does not reverse-engineer the obfuscation that protects Oracle's auto-login wallet, so no wallet is written from Python. The `open_questions.md` Q1 escalation gate (local decompilation) was not taken.
 - **Difference**: none in outcome, since the blocker exit applies. The escalation step in the plan was skipped deliberately, and that is recorded here so it does not look like an omission.
+
+### D5: Evidence vocabulary after renewed structure probes
+
+- **Spec**: `PRD.md`, REQ-8, lists only diff, javap, round-trip and decompile tags.
+- **Evidence**: renewed Phase 6 adds public standards and safe structural observations, without decompilation.
+- **Resolution**: extend REQ-8 and the findings legend with `[structure]` and `[standard]`; keep acceptance grounded in actual `[round-trip]` checks.
 
 ## Candidate Solutions
 
