@@ -65,14 +65,14 @@ Requirements: REQ-4, REQ-5
 
 Requirements: REQ-6, REQ-8, REQ-10
 
-- [ ] Add `ENGINE`, `DB_IMAGE`, `DB_CONTAINER`, `DB_PORT`, the `SQLCL_ITEST_USER` / `SQLCL_ITEST_CONNECT` defaults, `db-start` and `db-stop` to the `Makefile`
-- [ ] Confirm `db-start` refuses to run without `SQLCL_ITEST_PASSWORD` and never echoes a password
-- [ ] Build the saved-password store in stages, including both `-replace` directions and the descriptor connect string
-- [ ] Assert reported values and `password_saved` against SQLcl's `connmgr show`
-- [ ] Assert id stability and password state across `-replace`
-- [ ] Assert the tool's `test` command on `p_saved`
-- [ ] Assert no password in any tool output or export file
-- [ ] Verify Phase 4 with and without the password variable, and commit
+- [x] Add `ENGINE`, `DB_IMAGE`, `DB_CONTAINER`, `DB_PORT`, the `SQLCL_ITEST_USER` / `SQLCL_ITEST_CONNECT` defaults, `db-start` and `db-stop` to the `Makefile`
+- [x] Confirm `db-start` refuses to run without `SQLCL_ITEST_PASSWORD` and never echoes a password (exit 2 with the variable named; password count 0 in the `db-start` log)
+- [x] Build the saved-password store in stages, including both `-replace` directions and the descriptor connect string
+- [x] Assert reported values and `password_saved` against SQLcl's `connmgr show`
+- [x] Assert id stability and password state across `-replace`
+- [x] Assert the tool's `test` command on `p_saved`
+- [x] Assert no password in any tool output or export file; keep secret-bearing frames out of pytest tracebacks (`__tracebackhide__`, masked re-raise), because pytest prints the arguments of the frames it shows
+- [x] Verify Phase 4 with and without the password variable, and commit (15 passed, 1 strict `xfail` for `descriptor_connect_quoting`; 16 skipped without the password; password count 0 in the run log)
 
 ## Phase 5: Format Conformance
 
@@ -114,3 +114,4 @@ Requirements: REQ-9, REQ-8
 Defects and gaps found by the tests are listed here with their follow-up task (`open_questions.md`, Q6).
 
 - **Connect string of imported connections** (`open_questions.md`, Q6). `connmgr import` writes `ORACLE_BASIC` connections with `host`, `port` and `serviceName` and no `connectionString`, so the tool reports an empty `connect_string` and the three values in `extra` (`tests/integration/test_import_compat.py`). No value is lost, but how the tool should present the connect string of such a connection is undecided. Follow-up task: `oracle_basic_connect_string`.
+- **Descriptor connect strings through the tool's `add`** (`open_questions.md`, Q6). `save_connection` (`src/sqlcl_conn_mng/sqlcl.py:225-246`) passes `user@connect` through `quote_arg`, which wraps the whole target in double quotes when the connect string holds parentheses. SQLcl then fails to connect: `sqlcl-conn-mng add --connect-string "(DESCRIPTION=...)"` against the test database exited 1 with `Connection failed`, while the same call with `//localhost:1521/XEPDB1` saved the connection. Quoting only the descriptor (`itest@"(DESCRIPTION=...)"`) works, as the harness does. Committed as a strict `xfail` (`tests/integration/test_saved_password_compat.py::test_tool_add_with_descriptor`). Follow-up task: `descriptor_connect_quoting`.

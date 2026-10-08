@@ -55,6 +55,8 @@ def build_store(
         stages: Sequence[Sequence[Step]],
         secret: str | None = None,
     ) -> BuiltStore:
+        # Keep this frame out of tracebacks: pytest would print its arguments (the secret).
+        __tracebackhide__ = True
         home = tmp_path_factory.mktemp(name)
         return harness.build_stages(sqlcl_path, home, name, stages, secret)
 
@@ -214,3 +216,46 @@ def edge_store(build_store: Callable[..., BuiltStore]) -> BuiltStore:
     for folder in EDGE_FOLDERS:
         steps.append((f'connmgr add -folder "{folder}"', f"Folder {folder} has been added"))
     return build_store("edge_values", [steps])
+
+
+@pytest.fixture(scope="session")
+def saved_pw_store(build_store: Callable[..., BuiltStore], db_settings: DbSettings) -> BuiltStore:
+    """Build a store of connections saved against the live database; needs the password.
+
+    Stage 1 saves p_saved (-savepwd), p_nopwd (no -savepwd), p_replace (-savepwd) and
+    p_desc (-savepwd, descriptor form of the connect string). Stage 2 re-saves p_replace
+    with -replace and no -savepwd. Stage 3 re-saves p_replace with -replace -savepwd.
+    Stage 4 clones p_saved as p_clone, as p_clone_user (user other_user) and as
+    p_clone_nopwd (no password).
+    """
+    plain = db_settings.connect
+    desc = harness.descriptor(plain)
+
+    def saved(name: str, state: str) -> tuple[str, ...]:
+        return (f"Name: {name}", f"Password: {state}")
+
+    def cloned(name: str) -> str:
+        return f"Connection {name} has been cloned"
+
+    def save(name: str, connect: str, save_password: bool, replace: bool) -> str:
+        return harness.save_command(name, db_settings, connect, save_password, replace)
+
+    stages: list[list[Step]] = [
+        [
+            (save("p_saved", plain, True, False), saved("p_saved", "******")),
+            (save("p_nopwd", plain, False, False), saved("p_nopwd", "not saved")),
+            (save("p_replace", plain, True, False), saved("p_replace", "******")),
+            (save("p_desc", desc, True, False), saved("p_desc", "******")),
+        ],
+        [(save("p_replace", plain, False, True), saved("p_replace", "not saved"))],
+        [(save("p_replace", plain, True, True), saved("p_replace", "******"))],
+        [
+            ("connmgr clone -original p_saved p_clone", cloned("p_clone")),
+            (
+                "connmgr clone -original p_saved -username other_user p_clone_user",
+                cloned("p_clone_user"),
+            ),
+            ("connmgr clone -original p_saved -nopwd p_clone_nopwd", cloned("p_clone_nopwd")),
+        ],
+    ]
+    return build_store("saved_pw", stages, secret=db_settings.password)

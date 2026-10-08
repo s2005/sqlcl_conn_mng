@@ -9,6 +9,7 @@ import io
 import itertools
 import json
 import logging
+import re
 import shutil
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -19,7 +20,7 @@ from typing import Any
 import pytest
 
 from sqlcl_conn_mng import cli
-from sqlcl_conn_mng.sqlcl import SqlclError, SqlclRunner
+from sqlcl_conn_mng.sqlcl import SqlclRunner, quote_arg, quote_password
 
 SQLCL_ENV_VAR = "SQLCL_BIN"
 SQLCL_TIMEOUT = 600
@@ -86,6 +87,49 @@ def import_step() -> Step:
     )
 
 
+def descriptor(connect: str) -> str:
+    """Turn //host:port/service into the equivalent connect descriptor."""
+    found = re.fullmatch(r"//([^:/]+):(\d+)/([^/]+)", connect)
+    if found is None:
+        raise ValueError("connect string must look like //host:port/service")
+    host, port, service = found.groups()
+    return (
+        f"(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST={host})(PORT={port}))"
+        f"(CONNECT_DATA=(SERVICE_NAME={service})))"
+    )
+
+
+def save_command(
+    name: str,
+    settings: DbSettings,
+    connect: str,
+    save_password: bool,
+    replace: bool,
+) -> str:
+    """Build the connect command that saves a connection.
+
+    Built with the tool's own quoting, except that a descriptor connect string is quoted
+    on its own: SQLcl fails to connect when the whole user@descriptor target is quoted.
+    """
+    parts = ["connect", f"-save {quote_arg(name, 'name')}"]
+    if save_password:
+        parts.append("-savepwd")
+    if replace:
+        parts.append("-replace")
+    try:
+        quoted = quote_password(settings.password)
+    except ValueError:
+        # Drop the traceback: its frames would show the password.
+        raise ValueError("SQLCL_ITEST_PASSWORD cannot be quoted for SQLcl") from None
+    parts.append(f"-password {quoted}")
+    if connect.startswith("("):
+        # SQLcl rejects a quoted user@descriptor target; quote only the descriptor.
+        parts.append(f'{quote_arg(settings.user, "user")}@"{connect}"')
+    else:
+        parts.append(quote_arg(f"{settings.user}@{connect}", "user and connect string"))
+    return " ".join(parts)
+
+
 def mask(text: str, secret: str | None) -> str:
     """Replace the secret in the text with a placeholder."""
     if secret:
@@ -101,6 +145,8 @@ def check_steps(
     secret: str | None,
 ) -> None:
     """Check that the output holds every step's expected lines, step by step."""
+    # Keep this frame out of tracebacks: pytest would print its arguments, which hold the secret.
+    __tracebackhide__ = True
     pos = 0
     for step_no, (_command, expected) in enumerate(steps, start=1):
         lines = (expected,) if isinstance(expected, str) else expected
@@ -233,6 +279,8 @@ def build_stages(
     secret: str | None = None,
 ) -> BuiltStore:
     """Run each stage's commands in one SQLcl process, checking and snapshotting."""
+    # Keep this frame out of tracebacks: pytest would print its arguments, which hold the secret.
+    __tracebackhide__ = True
     snapshots = [snapshot(home)]
     outputs: list[str] = []
     runner = SqlclRunner(sqlcl_path, str(home), "thin", SQLCL_TIMEOUT)
@@ -240,9 +288,11 @@ def build_stages(
         script = "\n".join(command for command, _expected in steps)
         try:
             output = runner.run(script)
-        except SqlclError as exc:
+        except Exception as exc:
+            # Any failure here has the script, which may hold the secret, in its frames:
+            # report a masked message and drop the original traceback.
             raise StoreBuildError(
-                mask(f"store {name!r}, stage {stage_no}: {exc}", secret)
+                mask(f"store {name!r}, stage {stage_no}: {type(exc).__name__}: {exc}", secret)
             ) from None
         check_steps(name, stage_no, steps, output, secret)
         outputs.append(mask(output, secret))
