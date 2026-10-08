@@ -388,29 +388,25 @@ The no-wallet metadata-only connection was readable and behaved like an empty wa
 
 ## Runtime Comparison
 
-The decisions in force are: no third-party libraries (`open_questions.md`, Q3 revised), no plain-text passwords (Q10), and no reverse-engineered wallet (Q1, Q2). Within those, three runtimes could carry the SQLcl-free implementation. The Python + JRE row is costed from documented facts only; it was not proven hands-on (`notes.md`, D1).
+The renewed wallet POC changes the recommendation: password saves are feasible in standard-library Python. Third-party runtime libraries and plaintext storage remain excluded. Java and SQLcl were acceptance readers, not dependencies of the final wallet writer `[round-trip]` (`fresh`, `edges`; `open_questions.md`, renewed outcome).
 
-| | Pure Python | Python + JRE + `oraclepki` | Python + SQLcl for password operations |
+| | Pure Python | Python + JRE + `oraclepki` | Python + SQLcl |
 | --- | --- | --- | --- |
-| Dependencies | Python 3.13 standard library only (`json`, `base64`, `secrets`, `pathlib`, `shutil`), which the tool already requires | a Java runtime, plus `com.oracle.database.security:oraclepki` from Maven Central (latest 23.8.0.25.04; its POM declares no dependencies) | Oracle SQLcl and the Java runtime it needs; this is the tool's current dependency |
-| Licences | PSF for Python; the tool stays MIT | Oracle Free Use Terms and Conditions for `oraclepki`, plus the licence of the chosen JRE | Oracle Free Use Terms and Conditions for SQLcl (`LICENSE.txt`), plus the licence of the chosen JRE |
-| Install footprint | none beyond the tool | `oraclepki` jar 506,013 bytes, plus a JRE (the local JDK 17.0.15 is 292 MB) | SQLcl 25.4.1 is 108 MB, plus a JRE (SQLcl ran on that local JDK 17.0.15) |
-| Windows, Linux, macOS | the same code everywhere; files must be written as bytes, so LF line endings survive on Windows (SQLcl writes LF there too `[diff]`) | Java behaves the same on all three | SQLcl runs on all three, but on Windows it reads stdin in the ANSI code page, so the caller must encode non-ASCII input to match `[diff]` (`names/21_nonascii_cp1252`) |
-| Operations covered | everything except writing a saved password: `list`, `show`, `folders`, `export`; `add` without a password (no wallet file); `delete`; `rename`; `move`; `clone` (copy the wallet bytes, or write no wallet for `-nopwd` and `-username`); `add-folder`; `delete-folder` with and without `--force`; `show --check-password` when no wallet file exists | in principle every wallet operation, because SQLcl itself writes the wallet through `oracle.security.pki.OracleWallet` `[javap]`; not proven here | every operation, as today |
-| Not covered | `add` with a saved password, `add --replace` that saves a new password, `show --check-password` when a wallet file exists, `test` | `test` | none |
-| Allowed by the decisions in force | yes | no: third-party library (Q3 revised) | yes: the dependency already exists |
+| Dependencies | Python 3.13 standard library: existing metadata modules, `hashlib`, `hmac`, `secrets`, `base64`, plus independently implemented AES and DER | JRE and Maven artifact `com.oracle.database.security:oraclepki`; 23.8.0.25.04 is the previously costed example, not a latest-version assertion | SQLcl and a compatible Java runtime, as used today |
+| Licences | Python runtime PSF; independently written repository code MIT; no copied third-party or Oracle implementation | Oracle Free Use Terms and Conditions for the jar; chosen JRE licence | SQLcl's Oracle Free Use Terms and Conditions; chosen JRE licence |
+| Install footprint | No additional package or runtime; implementation size remains for the follow-up | Previously costed jar 506,013 bytes, plus JRE; local JDK 17.0.15 was 292 MB | Previously measured SQLcl 25.4.1 installation 108 MB, plus JRE |
+| Windows, Linux, macOS | Windows POC accepted; byte-based algorithms require no native provider, but Linux/macOS execution and platform-specific permissions remain to be tested | Installed Oracle library read the generated wallets on Windows; other platforms were not tested here | Windows acceptance passed; other platforms were not tested here |
+| Catalog coverage | All previously proved metadata operations; creation of empty/password wallets and reading the supported password alias now proved | Oracle library recognized generated password entries; standalone Maven create/update sequence remains outside the selected runtime | Existing commands and fresh Python-wallet acceptance |
+| Remaining boundaries | Live connectivity still needs a driver or SQLcl; old/local/proxy/certificate wallet formats are not qualified; production corruption handling, permissions and atomic writes remain implementation work | Adds a prohibited third-party runtime library; no independent Maven installation was qualified | Requires the larger existing external installation |
+| Allowed by current decisions | Yes | No, as a product runtime | Yes, as an optional existing compatibility/connectivity dependency |
+
+The Python row's wallet coverage and Windows results are `[round-trip]` (`fresh`, `edges`); its dependency set is the independently written POC's imports `[structure]`. Oracle API coverage is backed by `OracleWallet.setWalletArray`, `getSecretStore` and `OracleSecretStore.containsAlias` signatures `[javap]` and actual reads of generated wallets `[round-trip]` (`attribute_probes`). Historical footprint figures are retained as earlier measurements, not new installation checks. The Maven example's metadata and licence are recorded in its [published POM](https://repo.maven.apache.org/maven2/com/oracle/database/security/oraclepki/23.8.0.25.04/oraclepki-23.8.0.25.04.pom) `[standard]`.
 
 ### Recommendation
 
-Implement every catalog operation in pure Python, by the rules in this document, and keep SQLcl as an optional dependency for exactly three cases:
+Implement catalog writes and supported SQLcl 25.4.1 password wallets in pure Python, using the verified format above. Keep SQLcl optional for connectivity (`test` and the connect-before-save behavior) and unsupported-wallet compatibility. Saving a standard database password no longer inherently requires SQLcl `[round-trip]` (`fresh`).
 
-- `add` with a saved password, including `--replace` that saves a new one;
-- `show --check-password` when the connection has a `credentials.sso`;
-- `test`, which is a connectivity check and out of scope here (`open_questions.md`, Q5).
-
-A user without SQLcl can then manage the whole catalog and save connections without passwords. Only saving or checking a password, and testing a connection, need SQLcl, which the tool already detects through `--sqlcl`, `SQLCL_BIN` or `PATH`.
-
-One observation could shrink the `show --check-password` case. In SQLcl 25.4.1, all 43 wallets SQLcl wrote without a password in the `ops`, `case`, `imp`, `names`, `chars` and `fold` stores were exactly 270 bytes, and the 3 holding the dummy password were 426 bytes `[diff]`. File size is not a documented signal, and only one password length and one SQLcl version were seen. The follow-up should treat a size rule as a candidate that needs cross-version checks, not as a specification.
+Do not infer password presence from file size: the renewed probes produced password-bearing wallets from 391 to 1,771 bytes, and an empty-string secret is distinct from no password entry. Read and verify the supported wallet format instead `[round-trip]` (`edges`). Preserve existing unsupported wallets or fail clearly rather than overwriting unknown credential entries; test the production reader/writer's failure handling and permissions before shipping (follow-up requirement).
 
 ## Follow-Up
 

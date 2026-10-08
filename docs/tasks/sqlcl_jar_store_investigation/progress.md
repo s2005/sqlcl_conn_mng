@@ -93,7 +93,7 @@ Reopened on 2026-10-08 by the user's request to complete password saving with ob
 - [x] Inspect dummy-wallet structure without rendering content bytes or secrets
 - [x] Build standard-library Python empty and password-bearing wallet POCs in scratch only
 - [x] Confirm SQLcl password state and saved-name database login
-- [ ] Reassess runtime recommendation and follow-up outline from the new evidence
+- [x] Reassess runtime recommendation and follow-up outline from the new evidence
 - [ ] Run full gates, clean scratch secrets, and commit the renewed findings
 
 - [x] Compare wallet sizes and hashes across the Phase 2 cases
@@ -113,7 +113,7 @@ Requirements: REQ-7
 
 - [x] Cost the pure-Python runtime
 - [x] Cost the Python + JRE + Maven Central `oraclepki` runtime
-- [-] Prove the JRE call sequence hands-on if Phase 6 was blocked - not applicable: third-party libraries ruled out by the user (`notes.md` D1, `solution_01.md`)
+- [-] Prove the JRE call sequence hands-on if Phase 6 was blocked - not applicable: third-party product runtime ruled out by the user (`notes.md` D1). Installed Oracle APIs were used only as readers for the renewed Python POC
 - [x] Write the "Runtime comparison" section of `findings.md` with one recommendation
 - [x] Phase 7 verification passes
 

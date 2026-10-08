@@ -120,6 +120,8 @@ Covers REQ-7.
 
 Expected: the "Runtime comparison" table in `findings.md` has both runtimes with every column filled and ends with one recommendation. If Phase 6 was blocked, the JRE call sequence is shown working against a scratch store with the same `connmgr show` check as Phase 6.
 
+Renewed Phase 7 verification on 2026-10-08: comparison covers pure Python, JRE/Oracle library, and SQLcl; the recommendation now includes password saves in Python. Windows runtime evidence is separated from untested Linux/macOS and production-hardening requirements. No Maven runtime was added.
+
 ### Phase 8: Synthesis and Follow-Up Task Outline
 
 Covers REQ-8, REQ-9.
