@@ -53,3 +53,6 @@ logs/
 *.log
 tmp/
 out/
+
+# SQLcl download (make sqlcl)
+.cache/
