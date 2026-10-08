@@ -27,6 +27,8 @@ MSYS_NO_PATHCONV=1 sql -S -nohistory -noupdates -thin -home <scratch-root>/store
 | `[javap]` | Read from a class signature or a constant-pool string with `javap` |
 | `[round-trip]` | A file written from Python was read back by SQLcl with the stated result |
 | `[output]` | Exact SQLcl console output for the stated command |
+| `[structure]` | Dummy-wallet structure and controlled metadata probes, without rendering secret content |
+| `[standard]` | Linked public cryptographic specifications, original research or Oracle documentation |
 | `[decompile]` | Read from decompiled code; used only if the Q1 escalation gate is passed |
 
 ## Side Effects of Any SQLcl Run
@@ -310,41 +312,79 @@ A SQLcl-free writer must never list one id in two folders. SQLcl does not repair
 
 ### Verdict
 
-**Blocked** for writing a wallet from pure Python. Producing a new wallet, or adding a password to one, would require reproducing the obfuscation that protects Oracle's auto-login wallet. Oracle does not document that format, so reproducing it means reverse-engineering Oracle's credential protection, and this investigation does not do that. No Python-written wallet was built or offered to SQLcl. The wallet operations that need no new wallet bytes do work from Python; see "What Works Without Writing a Wallet". A connection without a saved password needs no wallet file at all. A saved password works without a wallet only in plain text; see "Wallet-Free Alternatives".
+**Accepted for SQLcl 25.4.1**: standard-library Python independently generated an empty wallet and two password-bearing wallets. SQLcl reported the expected password state and connected by each saved name; `select user from dual` returned `WALLET_PROBE` twice. The final writer read no Oracle wallet, template, extracted attribute or internal-password file. The previous blocker was superseded by the renewed Phase 6 experiments on 2026-10-08 `[round-trip]` (`fresh`, `accepted.txt`). This is feasibility evidence; the application still uses SQLcl for writes until the follow-up implementation.
 
-### Observed Behaviour
+### Method and Evidence
 
-These observations come from sizes, hash prefixes and SQLcl output only; no wallet byte was read or printed.
+The analyser inspected only dummy wallets. Its output described structure, offsets, lengths, algorithm identifiers and fixed format discriminators; no credential, key, salt, IV, ciphertext or wallet dump was rendered. A new Python AES implementation passed the AES-128 and AES-256 published known-answer examples before wallet experiments. DER parsing, PBKDF2 and PKCS#12 MAC verification identified the wrapping and credential structure. No Oracle method body was decompiled or copied `[structure]` `[standard]`.
 
-- Every connection directory holds a `credentials.sso`, with or without a saved password. A wallet without a password is 270 bytes and one with the dummy password is 426 bytes `[diff]` (`ops/01_save_pwd`, `ops/02_save_nopwd`).
-- Each write produces new bytes. All 46 wallets SQLcl wrote in the `ops`, `case`, `imp`, `names`, `chars` and `fold` stores have distinct SHA-256 hashes, including the 43 without a password, and rewriting the same password with `-replace` changed the hash `[diff]` (`ops/06_save_replace_pwd`). A constant empty-wallet template therefore does not exist.
-- SQLcl's credential code names these secret aliases: `dbtools.database.password.base64`, `dbtools.proxy.password.base64`, and the legacy `oracle.security.client.password`, `oracle.security.client.password1`, `oracle.security.client.username` and `oracle.security.client.connect_string`. `ConnectionCredentials` has a `cleanupLegacyPasswords` method `[javap]`. The wallet is opened through the `OraclePKI` provider (`Wallet`) and written through `oracle.security.pki.OracleWallet` `[javap]`.
-- `show` reports `Password: ******` when a password is saved and `Password: not saved` otherwise `[output]`.
-- `connect -save` without `-savepwd`, `clone -nopwd` and `clone -username` all write a 270-byte wallet with no password. A plain `clone` copies the password `[diff]` (`ops/02_save_nopwd`, `ops/39_clone_nopwd`, `ops/38_clone_user`, `ops/37_clone_plain`).
+Public research supplied a candidate wrapper IV, which was independently confirmed by successful MAC verification on SQLcl-written wallets and the later SQLcl round trip. The candidate's source concerns Oracle 26ai; its other version/type claims are not assumed to describe SQLcl. References: [original wrapper research](https://www.0xchris.dev/posts/2026-08-31-deobfuscating-auto-login-wallets-in-oracle-26ai/), [PKCS#12 specification](https://www.rfc-editor.org/rfc/rfc7292), and [Oracle's AES256 wallet description](https://docs.oracle.com/en/database/oracle/oracle-database/21/dbseg/using-the-orapki-utility-to-manage-pki-elements.html) `[standard]` `[structure]`.
 
-### What Works Without Writing a Wallet
+### Auto-Login Wrapper
 
-- **Clone with password, rename, move, delete.** A wallet does not depend on the directory it sits in. A byte-for-byte copy of a SQLcl-written wallet worked under five other ids: `show` reported the password as saved, and `connect -name` connected with it `[round-trip]` (`idrt/02_read`). Rename, move and delete never touch the wallet `[diff]`.
-- **A connection without a password.** A byte-for-byte copy of a SQLcl-written 270-byte wallet, placed beside a Python-written `dbtools.properties`, was shown as `Password: not saved` `[round-trip]` (`props/01_show`). Reusing a wallet that Oracle software generated as a template is a licence question for the follow-up, not a solution this investigation adopts.
-- **Saving a new password into the wallet, and `show --check-password` without SQLcl,** stay open. The remaining route is Oracle's own published wallet library (Phase 7), which is not yet assessed.
+The observed wrapper is 45 bytes; the DER PFX starts at offset 45. Integer fields are big-endian. These fixed format fields and independently generated random fields produced wallets accepted by SQLcl `[structure]` `[round-trip]`:
 
-### Wallet-Free Alternatives
+| Offset | Length | Meaning |
+| ------ | ------ | ------- |
+| 0 | 3 | File recognition marker, hexadecimal `A1 F8 4E` |
+| 3 | 1 | Wallet type 55 (hexadecimal `37`) for the observed SQLcl format |
+| 4 | 4 | Version 6 |
+| 8 | 4 | Wrapped-key section length 33 |
+| 12 | 1 | Scheme discriminator 6 |
+| 13 | 16 | Newly generated random AES-128 wrapper key |
+| 29 | 16 | One AES block containing the obfuscated internal PFX password |
+| 45 | variable | DER-encoded PKCS#12 PFX |
 
-These were tested in the store `nowallet`. Its connections are copies of `fold` connections, with the wallet removed or emptied, and with a Python-written `ojdbc.properties` for the last two rows. `<PW>` marks where SQLcl printed the dummy password; the capture replaced it.
+Generate an independent 16-byte internal password with each byte in 1-127. XOR it with the fixed wrapper IV `c034d8311c02cef851f0144b81ed4bf2`, then AES-128-encrypt that single block with the newly generated wrapper key. No padding is used for this fixed-size block. Recovering it reverses those steps. This exact construction, including control characters in the internal password, passed the fresh-wallet tests `[structure]` `[round-trip]`. The internal password is unrelated to the database password.
 
-| Connection directory holds | `connmgr list` / `show` | `connect -name` | Other operations |
-| -------------------------- | ----------------------- | --------------- | ---------------- |
-| `dbtools.properties` only, no `credentials.sso` | listed; `Password: not saved` | `ORA-01005: null password given; logon denied`, the same as for a SQLcl-written empty wallet (`nw_normal`) | `rename -conn`, `move -conn` work; `clone` writes a new 270-byte wallet for the clone |
-| A 0-byte `credentials.sso` | listed; `Password: not saved`, but every load logs `SEVERE ... Wallet Version Not Supported` with a stack trace | `ORA-01005` | not tested further |
-| No wallet, and `ojdbc.properties` with `password=<dummy>` | listed; `show` prints `Password: not saved` and then `password: <PW>`, so the password appears on the console in clear | connects; `select user from dual` returned `PROBE` | not tested |
-| No wallet, and `ojdbc.properties` with `oracle.jdbc.password=<dummy>` | listed | connects; `select user from dual` returned `PROBE` | not tested |
+### PKCS#12 Payload
 
-Evidence: `nowallet/01_read`, `nowallet/02_ops` `[round-trip]` `[output]`. `ConnectionDefinition` names `ojdbc.properties`, `tnsnames.ora` and `connection.properties` beside `credentials.sso` as files of a connection directory `[javap]`.
+The following construction was independently written from Python and accepted by SQLcl. Algorithm identities and parameter lengths also match the original dummy-wallet observations `[structure]` `[round-trip]`:
 
-Consequences for a SQLcl-free writer:
+- PFX is a DER sequence of version 3, `authSafe` ContentInfo, and `MacData`.
+- The outer ContentInfo has the `data` OID `1.2.840.113549.1.7.1`; its explicit context-0 value is an OCTET STRING containing the DER AuthenticatedSafe.
+- AuthenticatedSafe is a sequence containing one `encryptedData` ContentInfo (OID `1.2.840.113549.1.7.6`). Its context-0 value is EncryptedData, version 0, containing EncryptedContentInfo with content type `data`.
+- Encryption is PBES2 (`1.2.840.113549.1.5.13`), with PBKDF2 (`1.2.840.113549.1.5.12`): random 8-byte salt, 10,000 iterations, key length 32, PRF HMAC-SHA256 (`1.2.840.113549.2.9`, NULL parameters). PBKDF2's password input is the internal password's ASCII bytes.
+- Its encryption scheme is AES-256-CBC (`2.16.840.1.101.3.4.1.42`) with a fresh random 16-byte IV. Apply PKCS#7 padding to the DER SafeContents and store ciphertext as the implicit context-0 primitive value (tag 128).
+- MacData uses HMAC-SHA1, a fresh random 8-byte salt and 10,000 iterations. Its DigestInfo identifies SHA1 (`1.3.14.3.2.26`, NULL parameters), with a 20-byte digest.
+- Derive the MAC key using PKCS#12 Appendix B, diversifier 3, SHA1 and length 20. Format the internal password as UTF-16BE characters with a two-byte zero terminator. Authenticate the complete DER AuthenticatedSafe bytes inside the outer OCTET STRING, rather than the PFX or wrapper `[standard]` `[round-trip]`.
 
-- **A connection without a saved password needs no wallet at all.** Writing only `dbtools.properties` gives a connection that SQLcl treats exactly like one it saved without `-savepwd`. Never write a 0-byte wallet.
-- **A saved password is possible only in plain text,** through the JDBC connection-properties file `ojdbc.properties` in the connection directory. SQLcl reads it, but `show` reports `Password: not saved` and prints the value in clear, and the file is readable by anyone who can read the store. An auto-login wallet is documented by Oracle to open without any password, so it too protects the password mainly through file permissions; it does, however, keep the password off the console. The user rejected plain-text storage on 2026-10-08 because it breaks security (`open_questions.md`, Q10), so this route is documented and not adopted.
+### Empty and Password-Bearing SafeContents
+
+An empty wallet encrypts an empty DER SEQUENCE as SafeContents. The fresh generated wallet was 270 bytes and SQLcl reported `Password: not saved` `[structure]` `[round-trip]`.
+
+For a saved database password, SafeContents contains one SafeBag with bagId `1.2.840.113549.1.12.10.1.5` (`secretBag`). Its context-0 SecretBag is a SEQUENCE with secretTypeId `1.2.840.113549.1.16.12.12` and a context-0 value containing a SEQUENCE of two UTF8Strings: the alias `dbtools.database.password.base64`, then standard Base64 of the database password's UTF-8 bytes. Base64 is inside the encrypted payload; it is not the obfuscation mechanism `[structure]` `[round-trip]`.
+
+The SafeBag also carries a SET of attributes containing `localKeyId` (`1.2.840.113549.1.9.21`), whose SET value contains a 24-byte OCTET STRING. The observed compatible structure is `[structure]` `[round-trip]`:
+
+| Offset within localKeyId | Length | Value |
+| ----------------------- | ------ | ----- |
+| 0 | 4 | Fixed Oracle format discriminator, unsigned big-endian integer 3870708445 |
+| 4 | 8 | Opaque; freshly randomized in the accepted writer |
+| 12 | 4 | Entry-kind discriminator, unsigned big-endian integer 6 |
+| 16 | 8 | Opaque; freshly randomized in the accepted writer |
+
+A completely random 24-byte localKeyId made the password disappear from SQLcl's view. Controlled XOR mutations at every byte showed that changes at offsets 0-3 and 12-15 broke recognition, while all individually mutated opaque bytes remained readable. Keeping those two fixed discriminators and freshly randomizing both opaque regions fixed the failure. The final POC uses numeric format constants, with no attribute-template read `[structure]` `[round-trip]` (`attribute_probes`, `fresh`). The meaning of the opaque regions is not established.
+
+### Fresh-Wallet Acceptance
+
+The final writer generated three distinct wallets, with sizes 270, 426 and 426 bytes. SQLcl showed the empty password state, showed the saved state for both credential wallets, and completed two independent saved-name logins. Neither the dummy database password nor its Base64 representation occurred in clear in any generated wallet `[round-trip]` (`fresh`).
+
+Seven further password values covered empty text, 2/16/30-character random ASCII values, quotes/backslash/punctuation, UTF-8 including a supplementary character, and 1,024-character ASCII. Independent Python reads recovered each exact value; SQLcl recognized all seven password aliases without wallet errors. Sizes were 391, 391, 409, 426, 426, 409 and 1,771 bytes `[round-trip]` (`edges`). Only the main 24-character dummy credential was tested against a live database. Alias presence does not establish whether a particular database accepts an empty, Unicode or long password.
+
+SQLcl startup initially failed in Java's Windows Unix-domain temporary path. A process-local `JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=D:/temp/sqlcl-java-tmp` allowed the real round trips; SQLcl's launcher and installed files were unchanged. All calls used `-home` explicitly with a scratch store `[output]`.
+
+### Security and Compatibility Boundary
+
+This construction removes plaintext credentials from connection files and normal console output. The wrapper key resides in the auto-login file, so anyone who can read that file can recover its contents. Oracle explicitly states that file-system permissions provide auto-login-wallet security: [Oracle wallet security](https://docs.oracle.com/en/database/oracle/oracle-database/21/dbseg/using-the-orapki-utility-to-manage-pki-elements.html). Restrict access to the store and avoid secrets in command-line arguments and logs `[standard]` `[structure]`.
+
+The POC proves the ordinary SQLcl 25.4.1 database-password wallet, not local auto-login wallets, TDE wallets, proxy credentials, certificates, old DES wallets, or other SQLcl versions. A production reader must validate lengths, algorithms, padding and MAC before exposing a presence result, reject unsupported formats, and never log the decoded secret. A production writer needs atomic replacement and explicit permissions. These are follow-up implementation requirements, not checks already satisfied by this scratch POC `[round-trip]` (scope of `fresh` and `edges`).
+
+### Prior Wallet Observations and Alternatives
+
+Original operation captures remain valid: SQLcl always wrote a wallet, its empty wallets were 270 bytes, password replacement changed its hash, and `clone -nopwd` or `clone -username` dropped the saved password. Rename, move and delete left its bytes untouched. Copying an existing wallet under another id connected successfully `[diff]` `[round-trip]` (`ops`, `idrt`).
+
+The no-wallet metadata-only connection was readable and behaved like an empty wallet; a zero-byte wallet caused load errors. A plaintext `ojdbc.properties` password connected but was printed by `show`, so that alternative remains rejected. The earlier statement that plaintext was the only SQLcl-free way to save a password is superseded by `fresh` `[round-trip]` (`nowallet`, `fresh`).
 
 ## Runtime Comparison
 

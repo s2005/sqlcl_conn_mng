@@ -88,16 +88,24 @@ Requirements: REQ-4
 
 Requirements: REQ-6
 
+Reopened on 2026-10-08 by the user's request to complete password saving with obfuscation. The earlier blocker is historical; renewed acceptance requires an actual wallet round trip, without third-party runtime libraries or plaintext password storage.
+
+- [x] Inspect dummy-wallet structure without rendering content bytes or secrets
+- [x] Build standard-library Python empty and password-bearing wallet POCs in scratch only
+- [x] Confirm SQLcl password state and saved-name database login
+- [ ] Reassess runtime recommendation and follow-up outline from the new evidence
+- [ ] Run full gates, clean scratch secrets, and commit the renewed findings
+
 - [x] Compare wallet sizes and hashes across the Phase 2 cases
 - [x] Record secret aliases, algorithm names and format constants from `javap` (aliases and provider recorded; format constants not pursued, see blocker)
-- [-] Build the structure analyser in `<scratch-root>/poc/` (offsets, lengths, names only) - skipped: reverse-engineering the wallet obfuscation is not pursued
-- [-] Map the wallet layout - skipped, same reason
-- [-] POC: Python-written empty wallet accepted by SQLcl - skipped, same reason
-- [-] POC: Python-written wallet with the dummy password accepted by SQLcl - skipped, same reason
+- [x] Build the structure analyser in `<scratch-root>/poc/` - renewed clean-room structure probes completed
+- [x] Map the wallet layout - wrapper, DER payload and Oracle localKeyId discriminators verified
+- [x] POC: Python-written empty wallet accepted by SQLcl - fresh 270-byte wallet recognized
+- [x] POC: Python-written wallet with the dummy password accepted by SQLcl - two fresh wallets logged in by saved name
 - [x] Apply the escalation gate if the layout cannot be mapped clean-room - not taken; recorded in `open_questions.md` Q1, `notes.md` D3
-- [x] Write the "credentials.sso" section of `findings.md` with the verdict (blocked)
+- [x] Write the "credentials.sso" section of `findings.md` with the renewed verdict (accepted)
 - [x] Black-box test of wallet-free alternatives: no wallet file, 0-byte wallet, `ojdbc.properties` password
-- [x] Phase 6 verification passes - verdict: blocked, with the wallet-free alternatives; plain text rejected by the user (Q10)
+- [x] Phase 6 verification passes - renewed verdict: accepted; plaintext remains rejected (Q10)
 
 ## Phase 7: Runtime Comparison
 

@@ -112,6 +112,8 @@ printf 'connmgr show <name>\n' | MSYS_NO_PATHCONV=1 sql -S -nohistory -noupdates
 
 Expected: for the Python-written empty wallet, `Password: not saved`; for the Python-written wallet with the dummy password, a saved-password line, and a `connect -name <name>` by saved name succeeds. Otherwise the blocker is named in `findings.md`. No command in this phase prints wallet content bytes; predict each command's output before running it.
 
+Renewed Phase 6 verification on 2026-10-08: Python wrote an empty wallet and two independent password wallets without reading a template. SQLcl reported the expected password state and two saved-name database logins returned `WALLET_PROBE`. Seven additional password-value round trips and SQLcl alias-presence checks passed. AES-128 and AES-256 known-answer examples passed. Raw POC code and secrets remain scratch-only until Phase 8 cleanup. This supersedes the original blocker verdict.
+
 ### Phase 7: Runtime Comparison
 
 Covers REQ-7.

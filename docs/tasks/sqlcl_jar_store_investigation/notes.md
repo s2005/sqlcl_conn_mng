@@ -4,6 +4,16 @@ Phase 6 ended with the pure-Python wallet blocked, and on 2026-10-08 the user ru
 
 ## Drifts
 
+### D4: Reopened password-writing requirement
+
+- **Spec**: `progress.md`, Phases 6-8, and `findings.md`, wallet verdict, closed the task using a feasibility blocker.
+- **Request**: the user now asks to run the task fully and save passwords safely with obfuscation.
+- **Difference**: the completed checklist does not satisfy this renewed request. Reopen wallet discovery and synthesis; preserve the no-third-party-library and no-plaintext decisions.
+
+### Solution 04: Renew clean-room wallet experiments
+
+Use dummy-wallet structure observations, public cryptographic standards and SQLcl black-box acceptance to attempt a standard-library Python wallet writer in scratch only. Update the existing findings after real round trips. Do not decompile Oracle method bodies or ship the POC. A protected native credential store would be a different format and is not silently substituted for SQLcl compatibility.
+
 ### D1: Hands-on proof of the JRE route
 
 - **Spec**: `implementation_plan.md`, Phase 7, line 169: if Phase 6 was blocked, the JRE option is "costed as the primary path and checked hands-on". The same requirement appears in `progress.md` line 107 ("Prove the JRE call sequence hands-on if Phase 6 was blocked") and `verification.md` line 119.

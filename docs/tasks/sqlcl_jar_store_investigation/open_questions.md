@@ -87,12 +87,16 @@ Context gathered before writing this file:
 - **Options**: (a) yes, optionally, behind a warning. (b) no; saving a password keeps using SQLcl.
 - **Answer**: (b) - decided by the user on 2026-10-08: "security will be broken by such change if password will be save in plain text".
 
+## Renewed Investigation Outcome (2026-10-08)
+
+The user reopened password saving with obfuscation. Q1 remains clean-room: public research, signatures/constants and dummy-wallet black-box probes; no decompilation was needed. Q2 now has an accepted standard-library Python POC: an empty wallet and two independently generated password wallets passed SQLcl read and saved-name login. Q3 remains pure Python without third-party runtime libraries. Q10 still forbids plaintext storage, but its old inference that password saving must therefore retain SQLcl is superseded. See `solution_04.md` and the renewed wallet section in `findings.md`. Earlier outcomes above describe the first investigation pass.
+
 ## Resolution Summary
 
 | ID | Status | Carried by |
 | -- | ------ | ---------- |
-| Q1 | Answered (default); escalation not taken | All phases (method), Phase 6 (escalation gate) |
-| Q2 | Answered (default); feasibility exit taken | REQ-6, Phase 6 (feasibility exit) |
+| Q1 | Answered; clean-room renewal accepted, no decompilation | All phases (method), Phase 6 (escalation gate) |
+| Q2 | Answered; renewed Python wallet POC accepted | REQ-6, Phase 6 (feasibility exit) |
 | Q3 | Revised by the user: (a) | REQ-7, Phase 7 |
 | Q4 | Answered (default) | Task structure, REQ-8 |
 | Q5 | Answered | Non-Requirements |
@@ -100,4 +104,4 @@ Context gathered before writing this file:
 | Q7 | Answered | Harness phase |
 | Q8 | Answered | All phases |
 | Q9 | Answered | Deliverables |
-| Q10 | Answered by the user: (b) | REQ-6, REQ-7, Phase 8 follow-up outline |
+| Q10 | Plaintext rejected; obfuscated Python POC accepted | REQ-6, REQ-7, Phase 8 follow-up outline |
