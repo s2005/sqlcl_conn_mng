@@ -176,8 +176,8 @@ The feature can be accepted when all items are true:
 - [x] AC-6 - every edge-case value is reported exactly or is a strict, platform-limited `xfail` naming its follow-up - verified by: Phase 3 verification
 - [x] AC-7 - database scenarios pass with the variables set and skip with a reason without them - verified by: Phase 4 verification
 - [x] AC-8 - format conformance passes on SQLcl 25.4.1 and a failing assertion names the release - verified by: Phase 5 verification
-- [ ] AC-9 - no password in tool output or committed files, the repository store unchanged, no wallet opened - verified by: "Secret and Store Hygiene" and the `assert_no_password` checks in Phase 4
-- [ ] AC-10 - `README.md` documents the targets, variables, database targets, workflow and `sql.exe` note without repeating commands, and markdown lint is clean - verified by: Phase 7 verification
-- [ ] AC-11 - ruff check and format pass, the unit suite passes, and every `xfail` is strict, names a follow-up and is platform-limited - verified by: "Linter" and "Regression Check"
+- [x] AC-9 - no password in tool output or committed files, the repository store unchanged, no wallet opened - verified by: "Secret and Store Hygiene" and the `assert_no_password` checks in Phase 4
+- [x] AC-10 - `README.md` documents the targets, variables, database targets, workflow and `sql.exe` note without repeating commands, and markdown lint is clean - verified by: Phase 7 verification
+- [x] AC-11 - ruff check and format pass, the unit suite passes, and every `xfail` is strict, names a follow-up and is platform-limited - verified by: "Linter" and "Regression Check"
 - [x] AC-12 - every `make` target works locally, `db-start` refuses without the password and never echoes it, and no target's command or setting is repeated elsewhere - verified by: Phase 1, Phase 4 and Phase 6 verification
 - [x] AC-13 - the workflow is green on Ubuntu and Windows, database scenarios run on Ubuntu and skip on Windows, the password is masked, and a rerun hits the SQLcl cache - verified by: Phase 6 verification

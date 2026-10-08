@@ -102,12 +102,12 @@ Requirements: REQ-11, REQ-10
 
 Requirements: REQ-9, REQ-8
 
-- [ ] Update `README.md`, "Development" and "Testing"
-- [ ] Run `make check`, `make unit` and `make integration` with and without the database
-- [ ] Run the secret and store hygiene checks
-- [ ] Run markdown lint on `README.md` and the task folder
-- [ ] Tick the final acceptance checklist in `verification.md`
-- [ ] Commit
+- [x] Update `README.md`, "Development" and "Testing"
+- [x] Run `make check`, `make unit` and `make integration` with and without the database (Windows: check clean; unit `93 passed`; integration with the database `150 passed, 1 xfailed`, password count 0 in the log; without it `128 passed, 23 skipped`, every skip naming `SQLCL_ITEST_PASSWORD`)
+- [x] Run the secret and store hygiene checks (`git grep` for the password: no file; `.sqlcl` files newer than the start marker: 0; wallet reads in `tests/integration`: 0; tracked `.sso` or `.cache/` files: 0)
+- [x] Run markdown lint on `README.md` and the task folder
+- [x] Tick the final acceptance checklist in `verification.md`
+- [x] Commit
 
 ## Follow-Ups
 

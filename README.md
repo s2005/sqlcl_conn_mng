@@ -236,19 +236,50 @@ Summary of the SQLcl 25.4.1 store, observed empirically (the format is not docum
 
 ## Development
 
-```bash
-uv sync                      # install dependencies
-uv run pytest                # run unit tests
-uv run pytest -m integration # run the real-SQLcl test (needs SQLcl)
-uv run pytest --cov          # run tests with coverage
-uv run ruff check --fix .    # lint and autofix
-uv run ruff format .         # format
-uv run mypy                  # type check
-```
+Every check and test runs through a `make` target, so local runs and the CI workflow use the same commands. Run the targets from the repository root. On Windows, install GNU Make with Chocolatey (`choco install make`) and run them from Git Bash. Run `uv sync` once to install the dependencies.
+
+| Target | What it does |
+| ------ | ------------ |
+| `make check` | Lint, format check and type check |
+| `make unit` | Unit tests; the integration tests are deselected |
+| `make integration` | Integration tests against a real SQLcl (see "Testing") |
+| `make sqlcl` | Download and unpack the pinned SQLcl release into a local cache directory; does nothing when it is already there |
+| `make db-start` | Start the disposable test database container and wait until it accepts connections |
+| `make db-stop` | Remove the test database container |
+| `make print-sqlcl-version` | Print the pinned SQLcl release |
+| `make print-sqlcl-dir` | Print the SQLcl cache directory |
+| `make print-sqlcl-bin` | Print the `bin` directory of the unpacked SQLcl release |
+
+`PYTEST_ARGS` adds arguments to `make unit` and `make integration`, for example `make integration PYTEST_ARGS=tests/integration/test_folders_compat.py` to run one file, or `make unit PYTEST_ARGS=--cov` for coverage.
 
 ## Testing
 
-Unit tests use temporary fake stores only and never touch a real store. The `integration` test runs real SQLcl against a temporary store and is skipped when `sql` cannot be found (set `SQLCL_BIN` to point at it). SQLcl takes about 10 seconds to start.
+Unit tests use temporary fake stores only and never touch a real store.
+
+Integration tests (`make integration`) build connection stores in temporary directories with real SQLcl, then check that this tool reads them and operates on them correctly, and that SQLcl still writes the store format this tool expects. They never touch `<repo-root>/.sqlcl` or `<home>/.sqlcl`.
+
+- The tests find SQLcl from `SQLCL_BIN`, else `sql` on `PATH`. When neither resolves, every integration test skips with a reason. On Windows, `SQLCL_BIN` must name `sql.exe`, not the extensionless `sql` shell script next to it.
+- Without an installed SQLcl, `make sqlcl` downloads the pinned release; put the directory printed by `make print-sqlcl-bin` on `PATH`.
+- SQLcl takes 10-20 seconds per start, so a full run takes several minutes.
+
+The saved-password scenarios need a live database. They read three variables and skip, naming the missing ones, when any is unset:
+
+| Variable | Meaning | Default under `make` |
+| -------- | ------- | -------------------- |
+| `SQLCL_ITEST_CONNECT` | Connect string of the test database, `//host:port/service` | The database started by `make db-start` |
+| `SQLCL_ITEST_USER` | Database user the scenarios connect as | The user `make db-start` creates |
+| `SQLCL_ITEST_PASSWORD` | That user's password | None; the scenarios skip without it |
+
+`make db-start` starts the test database with Podman, creates the user with the password from `SQLCL_ITEST_PASSWORD`, and waits until the database is ready. It refuses to run when `SQLCL_ITEST_PASSWORD` is unset, and it hands the password to the container by variable name, so make never prints it. Set `ENGINE=docker` to use Docker instead of Podman. `make db-stop` removes the container. A full local run with the database, entering the password without echoing it:
+
+```bash
+read -rs SQLCL_ITEST_PASSWORD && export SQLCL_ITEST_PASSWORD
+make db-start
+make integration
+make db-stop
+```
+
+The workflow `.github/workflows/ci.yml` runs on pull requests, on pushes to `main` and on manual dispatch, on Ubuntu and Windows. Both jobs run `make check`, `make unit`, `make sqlcl` (cached per SQLcl release) and `make integration`. The Ubuntu job also generates a random database password for the run, masks it in the log, and wraps the integration tests in `make db-start` and `make db-stop`, so the saved-password scenarios run there. The Windows runner cannot run the Linux database container, so on Windows those scenarios skip with a reason. The workflow needs no repository secret.
 
 ## License
 
