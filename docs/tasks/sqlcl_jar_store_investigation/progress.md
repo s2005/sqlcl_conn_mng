@@ -65,13 +65,13 @@ Requirements: REQ-2
 
 Requirements: REQ-3
 
-- [ ] Record key set, order, header, line endings, trailing newline and encoding
-- [ ] Record escaping for special and non-ASCII characters
-- [ ] Record the writer in use and the JRE
-- [ ] Round trip a Python-written file and byte-compare it
-- [ ] Probe SQLcl tolerance: no header, reordered keys, LF versus CRLF, unknown key
-- [ ] Write the "dbtools.properties" section of `findings.md`
-- [ ] Phase 4 verification passes
+- [x] Record key set, order, header, line endings, trailing newline and encoding
+- [x] Record escaping for special and non-ASCII characters
+- [x] Record the writer in use and the JRE
+- [x] Round trip a Python-written file and byte-compare it
+- [x] Probe SQLcl tolerance: no header, reordered keys, LF versus CRLF, unknown key
+- [x] Write the "dbtools.properties" section of `findings.md`
+- [x] Phase 4 verification passes
 
 ## Phase 5: folders.json Write Format
 

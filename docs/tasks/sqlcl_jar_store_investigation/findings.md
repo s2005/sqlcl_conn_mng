@@ -81,8 +81,8 @@ The stores, each started empty:
 | `connect -save N -replace ...` over an existing `N` | none | `credentials.sso` only; the id and `dbtools.properties` are unchanged. Without `-savepwd` the saved password is dropped (426 to 270 bytes); with it the password is stored again (270 to 426) | none | `ops/05_save_replace_nopwd`, `ops/06_save_replace_pwd` `[diff]` |
 | `connmgr add -folder /p/q` | `connection_folders/folders.json` when absent | `folders.json`: the folder and every missing parent are added | none | `ops/07_folder_add_top`, `ops/08_folder_add_nested`, `ops/09_folder_add_deep` `[diff]` |
 | `connmgr move -conn N /p` | none | `folders.json` only: the id leaves its old folder list and is appended to the new one; moving to `/` removes it from every list | none | `ops/12_move_conn`, `ops/14_move_conn_again`, `ops/15_move_conn_root` `[diff]` |
-| `connmgr rename -conn OLD NEW` | none | `dbtools.properties` of the resolved connection, with `name` changed and the keys rewritten in alphabetical order; the id is kept; `folders.json` is unchanged when names do not collide in case | none | `case/07_rename_lower`, `ops/19_rename_conn_case` `[diff]` |
-| `connmgr clone -original O NEW` | `connections/<new id>/` with `dbtools.properties` (keys in alphabetical order) and `credentials.sso` holding the copied password (426 bytes) | none; the clone is placed at `/` even when `O` is in a folder | none | `ops/37_clone_plain`, `ops/41_clone_in_folder` `[diff]` |
+| `connmgr rename -conn OLD NEW` | `connection_folders/folders.json` as `{"folders":[]}` when absent | `dbtools.properties` of the resolved connection, with `name` changed and the keys rewritten in reread order (see "Key Order"); the id is kept; the folder lists are unchanged when names do not collide in case | none | `case/07_rename_lower`, `ops/19_rename_conn_case`, `props/03_rename_extra` `[diff]` |
+| `connmgr clone -original O NEW` | `connections/<new id>/` with `dbtools.properties` (keys in reread order) and `credentials.sso` holding the copied password (426 bytes) | none; the clone is placed at `/` even when `O` is in a folder | none | `ops/37_clone_plain`, `ops/41_clone_in_folder` `[diff]` |
 | `connmgr clone -original O -username U NEW` | as above with `userName=U`; `credentials.sso` has no password (270 bytes) | none | none | `ops/38_clone_user` `[diff]` |
 | `connmgr clone -original O -nopwd NEW` | as above with the original user; `credentials.sso` has no password (270 bytes) | none | none | `ops/39_clone_nopwd` `[diff]` |
 | `connmgr delete -conn N` | none | `folders.json`, when the id was listed in a folder | `connections/<id>/` with both files | `ops/42_delete_conn`, `ops/44_delete_conn_in_folder` `[diff]` |
@@ -195,3 +195,65 @@ Results:
 - `sqlcl-conn-mng list` showed only `badlast`, `pyc` and `seed` from that store, because `src/sqlcl_conn_mng/store.py:21` accepts only names of exactly 22 characters from the URL-safe alphabet. A store holding a directory SQLcl lists but the tool skips can only come from a writer other than SQLcl; this is recorded for the follow-up, and the tool is not changed here `[round-trip]`.
 
 A SQLcl-free writer should generate ids by the rule above, which SQLcl accepts like its own.
+
+## dbtools.properties
+
+### Writer
+
+- SQLcl writes the file with `java.util.Properties.store(Writer, String)`. `ConfigurationProperties` copies its entries with `new LinkedHashMap(Map)` and calls `ConfigurationProperties$OrderedProperties.store(Writer, String)`. The target is a `ConfigurationProperties$NoCommentsWriter`, which drops comment lines, over an `OutputStreamWriter` with an explicit charset `[javap]`.
+- It reads the file with `Properties.load(Reader)` over an `InputStreamReader` with an explicit charset, then copies the entries into a `LinkedHashMap` `[javap]`.
+- The JRE is the one in the environment table, Java 17.0.15.
+
+### Format
+
+| Property | Value | Evidence |
+| -------- | ----- | -------- |
+| Header | none: no comment line and no timestamp | `[diff]` every SQLcl-written file |
+| Line | `key=value`, no spaces around `=` | `[diff]` |
+| Line ending | LF, also on Windows | `[diff]` `line_ending` is `LF` in every snapshot |
+| Last line | ends with LF | `[diff]` `trailing_newline` is true in every snapshot |
+| Encoding | UTF-8; non-ASCII characters are written as raw UTF-8 bytes, never as `\uXXXX` | `[diff]` `names/21_nonascii_cp1252`: `café1` stored as the bytes `C3 A9` for `é` |
+| Escaping in values | `\` as `\\`; `:` `=` `#` `!` with a leading `\`; a leading space as a backslash followed by the space; inner and trailing spaces unescaped; tab, newline, carriage return and form feed as `\t` `\n` `\r` `\f` | `[diff]` `names/03_name_leading_space` (`name=\ lead`), `names/06_cs_descriptor` (`\=` throughout the descriptor), `names/07_clone_user_specials` (`userName=u\:s\=e\#r\!\\x y`), `ops/01_save_pwd` (`//localhost\:1537/XEPDB1`); the control characters follow from `Properties.store` `[javap]`, since SQLcl's input cannot carry them |
+| Escaping in keys | as in values, plus every space as a backslash followed by the space; the keys SQLcl writes contain none of these | `[javap]` |
+
+### Key Set
+
+| Written by | Keys |
+| ---------- | ---- |
+| `connect -save` | `name`, `type=ORACLE_DATABASE`, `connectionString`, `userName` `[diff]` (`ops/01_save_pwd`) |
+| `connmgr clone` | the original's keys, with `name` and, given `-username`, `userName` replaced `[diff]` (`ops/38_clone_user`) |
+| `connmgr import` of a basic SQL Developer connection | `name`, `type=ORACLE_BASIC`, `host`, `port`, `serviceName`, `userName` `[diff]` (`imp/01_import`) |
+| `connmgr rename -conn` | the existing keys, with `name` replaced; unknown keys are kept `[diff]` (`props/03_rename_extra` kept `zzExtra`) |
+
+`PropertyNames` also declares `url`, `proxyUserName`, `proxyDistinguishedName`, `databaseToolsConnectionId`, `ociAuthenticationMethod`, `ociProfile`, `ociRegion`, `ociTenancy` and the type values `ORACLE_BASIC`, `ORACLE_DATABASE`, `OCI_DBTOOLS` `[javap]`. No capture produced them; they come from import variants and OCI references, which are out of scope here.
+
+### Key Order
+
+- A newly created file keeps the order in which SQLcl builds it. `connect -save` writes `name, type, connectionString, userName`, and `import` writes `name, type, host, port, serviceName, userName` `[diff]`.
+- A file SQLcl reads and writes back (rename, clone) gets the iteration order of the `Properties` object it was loaded into. On Java 17 that is a `ConcurrentHashMap` with a 16-slot table, so the keys come out by bucket index of their spread `String.hashCode`. For the four standard keys this happens to be alphabetical, `connectionString, name, type, userName`. For an imported connection it is `port, name, host, type, serviceName, userName`, not alphabetical. The Python prediction matched both observations `[diff]` (`ops/37_clone_plain`, `imp/06_rename_imported`).
+- SQLcl does not depend on key order when reading. A Python file with the keys reversed was listed and shown normally `[round-trip]` (`props/01_show`, `tol_reorder`).
+
+### Round Trip and Byte Comparison
+
+A Python prototype, kept in `<scratch-root>/poc/` and not committed, writes ordered key-value pairs with the escaping above, with no header, LF endings, a final LF and UTF-8.
+
+- **Byte comparison.** The prototype parsed every `dbtools.properties` file in the scratch stores, kept each file's key order, and wrote it again. All 48 outputs were byte-identical to their inputs: 45 written by SQLcl and 3 Python-edited copies from the id round trip. The identical files include the leading-space name, the escaped descriptor connect string, the user name with `:`, `=`, `#`, `!` and `\`, and the non-ASCII values `[diff]`. There are therefore no differences to list.
+- **SQLcl reads the Python files.** Each prototype file was placed in its own connection directory beside a SQLcl-written wallet, in the store `props`. `connmgr list` listed all nine files, and `connmgr show` printed the values that were written, field for field `[round-trip]` (`props/01_show`, `props/02_show_nonascii`):
+  - `rt_plain`: the four standard keys.
+  - `rt_specials`: the name `rt sp:e=c!` with one leading space, the descriptor connect string, and the user `u:s=e#r!\x y`.
+  - `rt_nonascii`: the name `rt_café` and the user `über`.
+
+### Tolerance
+
+Each probe below was written from Python and read by SQLcl; `connmgr show` printed the expected values for each `[round-trip]` (`props/01_show`, `props/02_show_nonascii`). Renaming a probe made SQLcl rewrite it in its own format (`props/03_rename_extra` to `props/06_rename_uesc`):
+
+| Probe | SQLcl reads it | After a SQLcl rewrite |
+| ----- | -------------- | --------------------- |
+| `#` timestamp header line | yes | header dropped |
+| Keys in reverse order | yes | not rewritten in this test |
+| CRLF line endings | yes | LF |
+| Unknown extra key `zzExtra` | yes | key and value kept |
+| No final newline | yes | not rewritten in this test |
+| Non-ASCII name written as `é` | yes, `show "tol_uésc"` found it | written back as raw UTF-8 |
+
+A SQLcl-free writer can use the prototype's rules as is. Read tolerance means a stricter or looser reader on either side is harmless.

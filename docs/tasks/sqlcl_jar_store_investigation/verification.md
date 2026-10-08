@@ -161,7 +161,7 @@ The investigation can be accepted when all items are true:
 
 - [x] AC-1 - harness snapshot and diff work on a scratch store, and wallet bytes and password values never reach output - verified by: Phase 1 verification
 - [x] AC-2 - id rule documented with evidence, effect of rename, move and clone recorded, and a Python-generated id accepted by SQLcl - verified by: Phase 3 verification and the "Connection id" section of `findings.md`
-- [ ] AC-3 - `dbtools.properties` format documented and a Python-written file accepted with identical values, byte differences explained - verified by: Phase 4 verification
+- [x] AC-3 - `dbtools.properties` format documented and a Python-written file accepted with identical values, byte differences explained - verified by: Phase 4 verification
 - [ ] AC-4 - `folders.json` schema documented and a Python-written nested tree accepted by SQLcl and the tool, byte differences explained - verified by: Phase 5 verification
 - [x] AC-5 - one row per store-writing operation in the "Operation effect map", each citing a diff - verified by: Phase 2 verification
 - [ ] AC-6 - wallet verdict recorded: both POC wallets accepted, or a named blocker with evidence - verified by: Phase 6 verification
