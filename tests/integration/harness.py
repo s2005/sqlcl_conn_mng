@@ -221,6 +221,43 @@ def ids_by_name(snap: Mapping[str, Any]) -> dict[str, list[str]]:
     return found
 
 
+def assert_format(condition: bool, what: str, release: str) -> None:
+    """Fail naming the SQLcl release when a store format fact no longer holds."""
+    if not condition:
+        raise AssertionError(f"SQLcl {release} format drift: {what} differs from findings.md")
+
+
+def file_changes(
+    before: Mapping[str, Any], after: Mapping[str, Any]
+) -> tuple[set[str], set[str], set[str]]:
+    """Return the file keys created, changed (size or hash differs) and deleted."""
+    old: Mapping[str, Any] = before["files"]
+    new: Mapping[str, Any] = after["files"]
+    created = set(new) - set(old)
+    deleted = set(old) - set(new)
+    changed = {
+        key
+        for key in set(old) & set(new)
+        if old[key]["size"] != new[key]["size"] or old[key]["sha12"] != new[key]["sha12"]
+    }
+    return created, changed, deleted
+
+
+def conn_files(conn_id: str) -> set[str]:
+    """Return the two file keys of one connection directory."""
+    return {f"connections/{conn_id}/dbtools.properties", f"connections/{conn_id}/credentials.sso"}
+
+
+def conn_dirs(snap: Mapping[str, Any]) -> set[str]:
+    """Return the connection directory names present in a snapshot."""
+    dirs: set[str] = set()
+    for key in snap["files"]:
+        parts = key.split("/")
+        if len(parts) == 3 and parts[0] == "connections":
+            dirs.add(parts[1])
+    return dirs
+
+
 def assert_no_password(password: str, *texts: str) -> None:
     """Fail without echoing anything when the password occurs in any text."""
     if not password:

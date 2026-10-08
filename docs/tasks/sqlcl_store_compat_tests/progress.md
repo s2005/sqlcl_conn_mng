@@ -78,12 +78,12 @@ Requirements: REQ-6, REQ-8, REQ-10
 
 Requirements: REQ-7
 
-- [ ] Make the Phase 2-4 store fixtures session-scoped for reuse
-- [ ] Add `assert_format` and its self-test
-- [ ] Assert the id rule and per-operation file sets
-- [ ] Assert `dbtools.properties` header, line endings, encoding, escaping and key order
-- [ ] Assert `folders.json` layout, ordering and the empty-tree form
-- [ ] Verify Phase 5 and commit
+- [x] Make the Phase 2-4 store fixtures session-scoped for reuse (done from Phase 2 on, `notes.md`, D4)
+- [x] Add `assert_format` and its self-test
+- [x] Assert the id rule and per-operation file sets
+- [x] Assert `dbtools.properties` header, line endings, encoding, escaping and key order
+- [x] Assert `folders.json` layout, ordering and the empty-tree form
+- [x] Verify Phase 5 and commit (64 passed with the database, 57 passed and 7 skipped without it; no difference from `findings.md` on Windows)
 
 ## Phase 6: GitHub Actions Workflow
 
