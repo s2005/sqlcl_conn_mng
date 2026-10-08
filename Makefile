@@ -8,7 +8,17 @@ SQLCL_HOME := $(SQLCL_DIR)/$(SQLCL_VERSION)
 SQLCL_BIN_DIR := $(SQLCL_HOME)/sqlcl/bin
 PYTEST_ARGS ?=
 
-.PHONY: check unit integration sqlcl print-sqlcl-version print-sqlcl-dir print-sqlcl-bin
+ENGINE ?= podman
+DB_IMAGE := gvenzl/oracle-xe:21-slim
+DB_CONTAINER := sqlcl-itest-xe
+DB_PORT ?= 1521
+DB_WAIT_TRIES ?= 120
+DB_WAIT_SECONDS ?= 5
+SQLCL_ITEST_USER ?= itest
+SQLCL_ITEST_CONNECT ?= //localhost:$(DB_PORT)/XEPDB1
+export SQLCL_ITEST_USER SQLCL_ITEST_CONNECT
+
+.PHONY: check unit integration sqlcl print-sqlcl-version print-sqlcl-dir print-sqlcl-bin db-start db-stop
 
 # Lint, format check and type check.
 check:
@@ -49,3 +59,22 @@ print-sqlcl-dir:
 # Print the absolute directory holding the sql launcher.
 print-sqlcl-bin:
 	@echo "$(abspath $(SQLCL_BIN_DIR))"
+
+# Start the Oracle XE test container and wait until it is healthy.
+# Needs SQLCL_ITEST_PASSWORD in the environment; it is passed by name only.
+db-start:
+	if [ -z "$${SQLCL_ITEST_PASSWORD:-}" ]; then echo "SQLCL_ITEST_PASSWORD is not set" >&2; exit 1; fi; \
+	ORA_PW="$$(uv run python -c "import secrets; print(secrets.token_urlsafe(18))")"; \
+	APP_USER="$$SQLCL_ITEST_USER" APP_USER_PASSWORD="$$SQLCL_ITEST_PASSWORD" ORACLE_PASSWORD="$$ORA_PW" $(ENGINE) run -d --name $(DB_CONTAINER) -p $(DB_PORT):1521 -e APP_USER -e APP_USER_PASSWORD -e ORACLE_PASSWORD $(DB_IMAGE) >/dev/null; \
+	i=0; \
+	while [ "$$i" -lt $(DB_WAIT_TRIES) ]; do \
+		if $(ENGINE) exec $(DB_CONTAINER) healthcheck.sh >/dev/null 2>&1; then echo "database ready"; exit 0; fi; \
+		i=$$((i + 1)); sleep $(DB_WAIT_SECONDS); \
+	done; \
+	echo "database not ready after $(DB_WAIT_TRIES) tries" >&2; \
+	$(ENGINE) logs --tail 30 $(DB_CONTAINER) 2>&1 | grep -vF -e "$$SQLCL_ITEST_PASSWORD" -e "$$ORA_PW" >&2 || true; \
+	exit 1
+
+# Remove the Oracle XE test container; a missing container is ignored.
+db-stop:
+	-$(ENGINE) rm -f $(DB_CONTAINER)
