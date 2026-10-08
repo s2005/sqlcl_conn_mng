@@ -306,7 +306,7 @@ A SQLcl-free writer must never list one id in two folders. SQLcl does not repair
 
 ### Verdict
 
-**Blocked** for writing a wallet from pure Python. Producing a new wallet, or adding a password to one, would require reproducing the obfuscation that protects Oracle's auto-login wallet. Oracle does not document that format, so reproducing it means reverse-engineering Oracle's credential protection, and this investigation does not do that. No Python-written wallet was built or offered to SQLcl. The wallet operations that need no new wallet bytes do work from Python; see "What Works Without Writing a Wallet".
+**Blocked** for writing a wallet from pure Python. Producing a new wallet, or adding a password to one, would require reproducing the obfuscation that protects Oracle's auto-login wallet. Oracle does not document that format, so reproducing it means reverse-engineering Oracle's credential protection, and this investigation does not do that. No Python-written wallet was built or offered to SQLcl. The wallet operations that need no new wallet bytes do work from Python; see "What Works Without Writing a Wallet". A connection without a saved password needs no wallet file at all. A saved password works without a wallet only in plain text; see "Wallet-Free Alternatives".
 
 ### Observed Behaviour
 
@@ -322,4 +322,22 @@ These observations come from sizes, hash prefixes and SQLcl output only; no wall
 
 - **Clone with password, rename, move, delete.** A wallet does not depend on the directory it sits in. A byte-for-byte copy of a SQLcl-written wallet worked under five other ids: `show` reported the password as saved, and `connect -name` connected with it `[round-trip]` (`idrt/02_read`). Rename, move and delete never touch the wallet `[diff]`.
 - **A connection without a password.** A byte-for-byte copy of a SQLcl-written 270-byte wallet, placed beside a Python-written `dbtools.properties`, was shown as `Password: not saved` `[round-trip]` (`props/01_show`). Reusing a wallet that Oracle software generated as a template is a licence question for the follow-up, not a solution this investigation adopts.
-- **Saving a new password, and `show --check-password` without SQLcl,** stay open. The remaining route is Oracle's own published wallet library (Phase 7), which is not yet assessed.
+- **Saving a new password into the wallet, and `show --check-password` without SQLcl,** stay open. The remaining route is Oracle's own published wallet library (Phase 7), which is not yet assessed.
+
+### Wallet-Free Alternatives
+
+These were tested in the store `nowallet`. Its connections are copies of `fold` connections, with the wallet removed or emptied, and with a Python-written `ojdbc.properties` for the last two rows. `<PW>` marks where SQLcl printed the dummy password; the capture replaced it.
+
+| Connection directory holds | `connmgr list` / `show` | `connect -name` | Other operations |
+| -------------------------- | ----------------------- | --------------- | ---------------- |
+| `dbtools.properties` only, no `credentials.sso` | listed; `Password: not saved` | `ORA-01005: null password given; logon denied`, the same as for a SQLcl-written empty wallet (`nw_normal`) | `rename -conn`, `move -conn` work; `clone` writes a new 270-byte wallet for the clone |
+| A 0-byte `credentials.sso` | listed; `Password: not saved`, but every load logs `SEVERE ... Wallet Version Not Supported` with a stack trace | `ORA-01005` | not tested further |
+| No wallet, and `ojdbc.properties` with `password=<dummy>` | listed; `show` prints `Password: not saved` and then `password: <PW>`, so the password appears on the console in clear | connects; `select user from dual` returned `PROBE` | not tested |
+| No wallet, and `ojdbc.properties` with `oracle.jdbc.password=<dummy>` | listed | connects; `select user from dual` returned `PROBE` | not tested |
+
+Evidence: `nowallet/01_read`, `nowallet/02_ops` `[round-trip]` `[output]`. `ConnectionDefinition` names `ojdbc.properties`, `tnsnames.ora` and `connection.properties` beside `credentials.sso` as files of a connection directory `[javap]`.
+
+Consequences for a SQLcl-free writer:
+
+- **A connection without a saved password needs no wallet at all.** Writing only `dbtools.properties` gives a connection that SQLcl treats exactly like one it saved without `-savepwd`. Never write a 0-byte wallet.
+- **A saved password is possible only in plain text,** through the JDBC connection-properties file `ojdbc.properties` in the connection directory. SQLcl reads it, but `show` reports `Password: not saved` and prints the value in clear, and the file is readable by anyone who can read the store. An auto-login wallet is documented by Oracle to open without any password, so it too protects the password mainly through file permissions; it does, however, keep the password off the console. Whether plain-text storage is acceptable is a decision for the follow-up task, not for this investigation.
