@@ -89,11 +89,11 @@ The feature can be accepted when all items are true:
 - [ ] AC-2 - `--name` output and exit codes unchanged - verified by: Phase 1 and 2 unit tests, regression check
 - [x] AC-3 - `--filter` is a case-sensitive sorted glob on names - verified by: Phase 1 unit tests
 - [x] AC-4 - `--all` selects every connection - verified by: Phase 1 unit tests
-- [ ] AC-5 - batch continues after failure, prints lines and summary, exit 1 - verified by: Phase 2 unit tests
-- [ ] AC-6 - empty selection exits 1 with `No connections match` - verified by: Phase 2 unit tests
-- [ ] AC-7 - batch delete needs `--yes` and lists names first - verified by: Phase 2 unit tests and integration test
-- [ ] AC-8 - batch `show` JSON list and table blocks - verified by: Phase 2 unit tests
-- [ ] AC-9 - batch `test` and `move` act on each selected connection - verified by: Phase 2 unit and integration tests
+- [x] AC-5 - batch continues after failure, prints lines and summary, exit 1 - verified by: Phase 2 unit tests
+- [x] AC-6 - empty selection exits 1 with `No connections match` - verified by: Phase 2 unit tests
+- [x] AC-7 - batch delete needs `--yes` and lists names first - verified by: Phase 2 unit tests and integration test
+- [x] AC-8 - batch `show` JSON list and table blocks - verified by: Phase 2 unit tests
+- [x] AC-9 - batch `test` and `move` act on each selected connection - verified by: Phase 2 unit and integration tests
 - [ ] AC-10 - `list --filter` and `export --filter` narrow output - verified by: Phase 3 unit tests
 - [ ] AC-11 - README and SKILL.md document the parameters - verified by: Phase 4 review and markdown lint
 - [ ] AC-12 - version `0.3.0` in `pyproject.toml`, `uv.lock` and installed tool - verified by: Phase 4 commands

@@ -17,6 +17,7 @@ from sqlcl_conn_mng.cli import (
     main,
     render_table,
 )
+from sqlcl_conn_mng.sqlcl import SqlclError
 from tests.conftest import ID_DEV
 
 
@@ -454,3 +455,165 @@ def test_select_name_is_literal(fake_home: Path) -> None:
     assert _select(fake_home, ["--name", "dev_local"]) == ["dev_local"]
     with pytest.raises(ValueError, match="No saved connection named"):
         _select(fake_home, ["--name", "dev_*"])
+
+
+def _base(fake_home: Path) -> list[str]:
+    return ["--home", str(fake_home), "--sqlcl", "sql-bin"]
+
+
+def _fail_on(bad: str, mocker: MockerFixture, target: str) -> MockerFixture:
+    """Patch a sqlcl function so it fails for one name and succeeds for the others."""
+
+    def fake(runner: object, name: str, *rest: object) -> str:
+        if name == bad:
+            raise SqlclError(f"boom {name}")
+        return f"done {name}"
+
+    return mocker.patch(target, side_effect=fake)  # type: ignore[no-any-return]
+
+
+@pytest.mark.unit
+def test_test_name_output_unchanged(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.check_connection", return_value="Connection OK")
+    assert main(["test", *_base(fake_home), "--name", "dev_local"]) == 0
+    assert capsys.readouterr().out == "Connection OK\n"
+
+
+@pytest.mark.unit
+def test_test_name_failure_propagates(fake_home: Path, mocker: MockerFixture) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.check_connection", side_effect=SqlclError("bad"))
+    assert main(["test", *_base(fake_home), "--name", "dev_local"]) == 1
+
+
+@pytest.mark.unit
+def test_test_batch_continues_after_failure(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    fake = _fail_on("dev_local", mocker, "sqlcl_conn_mng.sqlcl.check_connection")
+    assert main(["test", *_base(fake_home), "--all"]) == 1
+    assert fake.call_count == 3
+    assert capsys.readouterr().out.splitlines() == [
+        "[OK] Prod One",
+        "[FAIL] dev_local: boom dev_local",
+        "[OK] root_conn",
+        "Summary: 2 ok, 1 failed",
+    ]
+
+
+@pytest.mark.unit
+def test_test_batch_all_ok_exits_zero(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.check_connection", return_value="ok")
+    assert main(["test", *_base(fake_home), "--filter", "*_*"]) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "[OK] dev_local",
+        "[OK] root_conn",
+        "Summary: 2 ok, 0 failed",
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("command", [["test"], ["show"], ["move", "--folder", "/x"]])
+def test_empty_selection_exits_one(
+    command: list[str], fake_home: Path, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
+) -> None:
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    assert main([*command, *_base(fake_home), "--filter", "nomatch*"]) == 1
+    assert "No connections match --filter 'nomatch*'" in caplog.text
+    run.assert_not_called()
+
+
+@pytest.mark.unit
+def test_delete_batch_without_yes_deletes_nothing(fake_home: Path, mocker: MockerFixture) -> None:
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    assert main(["delete", *_base(fake_home), "--all"]) == 1
+    assert main(["delete", *_base(fake_home), "--filter", "dev_*"]) == 1
+    run.assert_not_called()
+
+
+@pytest.mark.unit
+def test_delete_batch_lists_names_then_deletes(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    fake = _fail_on("root_conn", mocker, "sqlcl_conn_mng.sqlcl.delete_connection")
+    argv = ["delete", *_base(fake_home), "--filter", "*_*", "--yes"]
+    assert main(argv) == 1
+    assert [c.args[1] for c in fake.call_args_list] == ["dev_local", "root_conn"]
+    assert capsys.readouterr().out.splitlines() == [
+        "Deleting 2 connection(s): dev_local, root_conn",
+        "[OK] dev_local",
+        "[FAIL] root_conn: boom root_conn",
+        "Summary: 1 ok, 1 failed",
+    ]
+
+
+@pytest.mark.unit
+def test_delete_name_with_yes_output_unchanged(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.delete_connection", return_value="gone")
+    assert main(["delete", *_base(fake_home), "--name", "dev_local", "--yes"]) == 0
+    assert capsys.readouterr().out == "gone\n"
+
+
+@pytest.mark.unit
+def test_move_batch_passes_folder_to_each(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    fake = mocker.patch("sqlcl_conn_mng.sqlcl.move_connection", return_value="moved")
+    assert main(["move", *_base(fake_home), "--filter", "*_*", "--folder", "/x"]) == 0
+    assert [(c.args[1], c.args[2]) for c in fake.call_args_list] == [
+        ("dev_local", "/x"),
+        ("root_conn", "/x"),
+    ]
+    assert "Summary: 2 ok, 0 failed" in capsys.readouterr().out
+
+
+@pytest.mark.unit
+def test_show_name_json_is_object(fake_home: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    argv = ["show", "--home", str(fake_home), "--name", "dev_local", "--format", "json"]
+    assert main(argv) == 0
+    assert isinstance(json.loads(capsys.readouterr().out), dict)
+
+
+@pytest.mark.unit
+def test_show_batch_json_is_sorted_list(
+    fake_home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    argv = ["show", "--home", str(fake_home), "--filter", "*_*", "--format", "json"]
+    assert main(argv) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [c["name"] for c in data] == ["dev_local", "root_conn"]
+    assert all("wallet_present" in c for c in data)
+
+
+@pytest.mark.unit
+def test_show_batch_table_blocks_separated_by_blank_line(
+    fake_home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["show", "--home", str(fake_home), "--all"]) == 0
+    blocks = capsys.readouterr().out.strip().split("\n\n")
+    assert [b.splitlines()[0] for b in blocks] == [
+        "Name: Prod One",
+        "Name: dev_local",
+        "Name: root_conn",
+    ]
+
+
+@pytest.mark.unit
+def test_show_batch_check_password_continues_after_failure(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    def fake(runner: object, name: str) -> object:
+        if name == "dev_local":
+            raise SqlclError("boom")
+        return mocker.Mock(password_saved=True)
+
+    mocker.patch("sqlcl_conn_mng.sqlcl.show_connection", side_effect=fake)
+    argv = ["show", *_base(fake_home), "--all", "--check-password", "--format", "json"]
+    assert main(argv) == 1
+    data = json.loads(capsys.readouterr().out)
+    assert [c["name"] for c in data] == ["Prod One", "root_conn"]

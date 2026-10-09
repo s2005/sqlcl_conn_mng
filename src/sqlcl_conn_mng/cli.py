@@ -288,6 +288,40 @@ def _select_names(args: argparse.Namespace, store: ConnectionStore) -> list[str]
     return [n for n in names if _matches(n, args.name_filter)]
 
 
+def _describe_selection(args: argparse.Namespace) -> str:
+    if args.select_all:
+        return "--all"
+    return f"--filter {args.name_filter!r}"
+
+
+def _require_matches(args: argparse.Namespace, names: list[str]) -> None:
+    if not names:
+        raise ValueError(f"No connections match {_describe_selection(args)}")
+
+
+def _run_batch(args: argparse.Namespace, names: list[str], action: Callable[[str], str]) -> int:
+    """Run action for each selected name.
+
+    A --name selection prints the action result and lets exceptions propagate. A batch
+    reports one line per connection, continues after a failure and ends with a summary.
+    """
+    if args.name is not None:
+        print(action(names[0]))
+        return 0
+    _require_matches(args, names)
+    failed = 0
+    for name in names:
+        try:
+            action(name)
+        except (sq.SqlclError, StoreError, ValueError, OSError) as exc:
+            failed += 1
+            print(f"[FAIL] {name}: {exc}")
+        else:
+            print(f"[OK] {name}")
+    print(f"Summary: {len(names) - failed} ok, {failed} failed")
+    return 1 if failed else 0
+
+
 def _dump(data: Any) -> None:
     print(json.dumps(data, indent=2, sort_keys=True))
 
@@ -332,15 +366,28 @@ def _connection_block(conn: SavedConnection, data: dict[str, Any], check_passwor
 
 def _cmd_show(args: argparse.Namespace) -> int:
     store = _store(args)
-    conn = store.get(args.name)
-    if conn is None:
-        raise ValueError(f"No saved connection named {args.name!r}")
-    data = _connection_data(args, store, conn)
+    names = _select_names(args, store)
+    if args.name is None:
+        _require_matches(args, names)
+    failed = 0
+    shown: list[tuple[SavedConnection, dict[str, Any]]] = []
+    for name in names:
+        conn = store.get(name)
+        if conn is None:
+            raise ValueError(f"No saved connection named {name!r}")
+        try:
+            shown.append((conn, _connection_data(args, store, conn)))
+        except (sq.SqlclError, StoreError, ValueError, OSError) as exc:
+            if args.name is not None:
+                raise
+            failed += 1
+            logger.error("%s: %s", name, exc)
     if args.format == "json":
-        _dump(data)
-        return 0
-    print(_connection_block(conn, data, args.check_password))
-    return 0
+        _dump(shown[0][1] if args.name is not None else [data for _, data in shown])
+    else:
+        blocks = [_connection_block(c, d, args.check_password) for c, d in shown]
+        print("\n\n".join(blocks))
+    return 1 if failed else 0
 
 
 def _folder_dict(folder: Folder, names: dict[str, str]) -> dict[str, Any]:
@@ -413,8 +460,12 @@ def _cmd_add(args: argparse.Namespace) -> int:
 def _cmd_delete(args: argparse.Namespace) -> int:
     if not args.yes:
         raise ValueError(_NEED_YES)
-    print(sq.delete_connection(_runner(args), args.name))
-    return 0
+    names = _select_names(args, _store(args))
+    if args.name is None:
+        _require_matches(args, names)
+        print(f"Deleting {len(names)} connection(s): {', '.join(names)}")
+    runner = _runner(args)
+    return _run_batch(args, names, lambda name: sq.delete_connection(runner, name))
 
 
 def _cmd_rename(args: argparse.Namespace) -> int:
@@ -423,8 +474,9 @@ def _cmd_rename(args: argparse.Namespace) -> int:
 
 
 def _cmd_move(args: argparse.Namespace) -> int:
-    print(sq.move_connection(_runner(args), args.name, args.folder))
-    return 0
+    names = _select_names(args, _store(args))
+    runner = _runner(args)
+    return _run_batch(args, names, lambda name: sq.move_connection(runner, name, args.folder))
 
 
 def _cmd_clone(args: argparse.Namespace) -> int:
@@ -434,8 +486,9 @@ def _cmd_clone(args: argparse.Namespace) -> int:
 
 
 def _cmd_test(args: argparse.Namespace) -> int:
-    print(sq.check_connection(_runner(args), args.name))
-    return 0
+    names = _select_names(args, _store(args))
+    runner = _runner(args)
+    return _run_batch(args, names, lambda name: sq.check_connection(runner, name))
 
 
 def _cmd_add_folder(args: argparse.Namespace) -> int:
