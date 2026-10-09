@@ -579,6 +579,9 @@ def _cmd_update(args: argparse.Namespace) -> int:
     conn = _select_connections(args, store)[0]
     _reject_duplicate_names([c for c in store.connections() if c.name == conn.name])
     changes = _update_changes(args, store, conn)
+    if changes:
+        # Refuse an unwritable file now, before a password step that cannot be undone.
+        store.check_rewritable(conn.id)
     if wants_password:
         connect_string = changes.get("connectionString") or _current_connect_string(conn)
         password = _read_password(args)

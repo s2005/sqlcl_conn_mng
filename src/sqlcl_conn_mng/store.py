@@ -178,6 +178,23 @@ class ConnectionStore:
                 return conn
         return None
 
+    def check_rewritable(self, conn_id: str) -> str:
+        """Return the text of one dbtools.properties if update_properties could rewrite it.
+
+        Raises StoreError for a missing file or a file with a comment or continuation line, so a
+        caller can refuse before it changes anything else.
+        """
+        target = self.home / CONNECTIONS_DIR / conn_id / PROPERTIES_FILE
+        if not target.is_file():
+            raise StoreError(f"Connection properties file not found for id {conn_id}")
+        text = _read_text(target)
+        if _has_comment_or_continuation(text):
+            raise StoreError(
+                f"Refusing to rewrite {PROPERTIES_FILE} for id {conn_id}: "
+                "it has a comment or a continuation line"
+            )
+        return text
+
     def update_properties(self, conn_id: str, changes: Mapping[str, str]) -> None:
         """Set name, userName and/or connectionString in one dbtools.properties, atomically.
 
@@ -189,15 +206,8 @@ class ConnectionStore:
         unknown = set(changes) - WRITABLE_KEYS
         if unknown:
             raise StoreError(f"Cannot write properties: {', '.join(sorted(unknown))}")
+        text = self.check_rewritable(conn_id)
         target = self.home / CONNECTIONS_DIR / conn_id / PROPERTIES_FILE
-        if not target.is_file():
-            raise StoreError(f"Connection properties file not found for id {conn_id}")
-        text = _read_text(target)
-        if _has_comment_or_continuation(text):
-            raise StoreError(
-                f"Refusing to rewrite {PROPERTIES_FILE} for id {conn_id}: "
-                "it has a comment or a continuation line"
-            )
         props = parse_properties(text)
         if "connectionString" in changes:
             props = _with_connect_string_form(props)

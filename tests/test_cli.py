@@ -1101,3 +1101,32 @@ def test_p2_unsupported_type_with_password_is_refused_before_connect(
     assert main(argv) == 1
     assert _tree(home) == before
     run.assert_not_called()
+
+
+@pytest.mark.unit
+def test_p2b_commented_properties_file_refused_before_password_step(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+) -> None:
+    """P2 (PR #4, round 3): an unwritable file must be refused before the password changes."""
+    monkeypatch.setenv("FAKE_PWD_VAR", SECRET)
+    home = tmp_path / "commented"
+    write_connection(home, UPD_ID_A, "# note\n" + UPD_PROPS.format(name="alpha"))
+    before = _tree(home)
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    argv = _upd_argv(home, "--password-env", "FAKE_PWD_VAR", "--user", "hr")
+    assert main(argv) == 1
+    assert _tree(home) == before
+    run.assert_not_called()
+
+
+@pytest.mark.unit
+def test_p2b_password_only_update_does_not_need_a_rewritable_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+) -> None:
+    """A password-only update never rewrites the file, so a comment in it is harmless."""
+    monkeypatch.setenv("FAKE_PWD_VAR", SECRET)
+    home = tmp_path / "commented_pw"
+    write_connection(home, UPD_ID_A, "# note\n" + UPD_PROPS.format(name="alpha"))
+    run = _ok_run(mocker)
+    assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR")) == 0
+    assert run.call_count == 1  # type: ignore[attr-defined]
