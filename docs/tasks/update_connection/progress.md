@@ -61,8 +61,6 @@ Requirements: REQ-2, REQ-3, REQ-6, REQ-7
 - [x] Remove Phase 1 probe leftovers
 - [x] `make check`, `make unit`, `make integration` and `markdownlint-cli2` pass
 
-## Review Feedback
-
 ## Review Feedback (PR #4)
 
 - [x] P2: Unsupported type was checked after the password step (fixed - checked in validation, before any write)
