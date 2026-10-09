@@ -617,3 +617,58 @@ def test_show_batch_check_password_continues_after_failure(
     assert main(argv) == 1
     data = json.loads(capsys.readouterr().out)
     assert [c["name"] for c in data] == ["Prod One", "root_conn"]
+
+
+@pytest.mark.unit
+def test_list_filter_table(fake_home: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["list", "--home", str(fake_home), "--filter", "dev_*"]) == 0
+    out = capsys.readouterr().out
+    assert "dev_local" in out
+    assert "root_conn" not in out
+    assert "Prod One" not in out
+
+
+@pytest.mark.unit
+def test_list_filter_json_and_folder_are_anded(
+    fake_home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    base = ["list", "--home", str(fake_home), "--format", "json"]
+    assert main([*base, "--filter", "*_*"]) == 0
+    assert [c["name"] for c in json.loads(capsys.readouterr().out)] == ["dev_local", "root_conn"]
+    assert main([*base, "--filter", "*_*", "--folder", "/dev"]) == 0
+    assert [c["name"] for c in json.loads(capsys.readouterr().out)] == ["dev_local"]
+    assert main([*base, "--filter", "root_*", "--folder", "/dev"]) == 0
+    assert json.loads(capsys.readouterr().out) == []
+
+
+@pytest.mark.unit
+def test_list_filter_no_match_prints_header_only(
+    fake_home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["list", "--home", str(fake_home), "--filter", "nomatch*"]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert len(lines) == 2
+    assert lines[0].startswith("name")
+
+
+@pytest.mark.unit
+def test_export_filter_writes_only_matches(
+    fake_home: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = tmp_path / "out.json"
+    argv = ["export", "--home", str(fake_home), "--output", str(target), "--filter", "dev_*"]
+    assert main(argv) == 0
+    data = json.loads(target.read_text(encoding="utf-8"))
+    assert [c["name"] for c in data["connections"]] == ["dev_local"]
+    assert f"Exported 1 connection(s) to {target}" in capsys.readouterr().out
+
+
+@pytest.mark.unit
+def test_export_filter_no_match_exports_zero(
+    fake_home: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = tmp_path / "out.json"
+    argv = ["export", "--home", str(fake_home), "--output", str(target), "--filter", "nomatch*"]
+    assert main(argv) == 0
+    assert json.loads(target.read_text(encoding="utf-8")) == {"connections": []}
+    assert "Exported 0 connection(s)" in capsys.readouterr().out

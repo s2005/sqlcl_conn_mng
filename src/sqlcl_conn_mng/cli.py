@@ -139,6 +139,7 @@ def build_parser() -> CliParser:
         "list", parents=[global_options], help="List saved connections (reads files, no SQLcl)."
     )
     p.add_argument("--folder", help="Only connections in this folder or below (default: all).")
+    _add_filter(p)
     _add_format(p)
     p.set_defaults(func=_cmd_list)
 
@@ -225,6 +226,7 @@ def build_parser() -> CliParser:
         "export", parents=[global_options], help="Write connection metadata (no passwords) as JSON."
     )
     p.add_argument("--output", required=True, help="Path of the JSON file to write.")
+    _add_filter(p)
     p.set_defaults(func=_cmd_export)
     parser.commands.update(sub.choices)
     return parser
@@ -330,6 +332,8 @@ def _cmd_list(args: argparse.Namespace) -> int:
     conns = _store(args).connections()
     if args.folder:
         conns = [c for c in conns if _in_folder(c, args.folder)]
+    if args.name_filter is not None:
+        conns = [c for c in conns if _matches(c.name, args.name_filter)]
     if args.format == "json":
         _dump([c.to_dict() for c in conns])
         return 0
@@ -507,6 +511,8 @@ def _cmd_export(args: argparse.Namespace) -> int:
     store = _store(args)
     items = []
     for conn in store.connections():
+        if args.name_filter is not None and not _matches(conn.name, args.name_filter):
+            continue
         item = conn.to_dict()
         item["wallet_present"] = store.has_wallet(conn.id)
         items.append(item)

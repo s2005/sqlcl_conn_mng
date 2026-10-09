@@ -45,9 +45,9 @@ Requirements: REQ-4, REQ-5, REQ-6
 
 Requirements: REQ-2, REQ-6
 
-- [ ] Add `--filter` to `list` and `export`
-- [ ] Unit tests for both, including the empty result
-- [ ] `make unit` and `make check` pass
+- [x] Add `--filter` to `list` and `export`
+- [x] Unit tests for both, including the empty result
+- [x] `make unit` and `make check` pass
 
 ## Phase 4: Documentation And Version Bump
 
