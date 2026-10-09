@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import getpass
 import json
 import logging
@@ -36,6 +37,33 @@ def _add_format(parser: argparse.ArgumentParser) -> None:
 
 def _add_name(parser: argparse.ArgumentParser, help_text: str = "Connection name.") -> None:
     parser.add_argument("--name", required=True, help=help_text)
+
+
+def _add_selector(parser: argparse.ArgumentParser) -> None:
+    """Add the required --name / --filter / --all group (exactly one must be given)."""
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--name", help="Connection name.")
+    group.add_argument(
+        "--filter",
+        dest="name_filter",
+        metavar="PATTERN",
+        help="Every connection whose name matches the case-sensitive glob PATTERN, e.g. 'dev_*'.",
+    )
+    group.add_argument(
+        "--all",
+        dest="select_all",
+        action="store_true",
+        help="Every saved connection.",
+    )
+
+
+def _add_filter(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--filter",
+        dest="name_filter",
+        metavar="PATTERN",
+        help="Only connections whose name matches the case-sensitive glob PATTERN, e.g. 'dev_*'.",
+    )
 
 
 def _global_options() -> argparse.ArgumentParser:
@@ -114,8 +142,8 @@ def build_parser() -> CliParser:
     _add_format(p)
     p.set_defaults(func=_cmd_list)
 
-    p = sub.add_parser("show", parents=[global_options], help="Show one saved connection.")
-    _add_name(p)
+    p = sub.add_parser("show", parents=[global_options], help="Show saved connections.")
+    _add_selector(p)
     p.add_argument(
         "--check-password",
         action="store_true",
@@ -147,8 +175,8 @@ def build_parser() -> CliParser:
     )
     p.set_defaults(func=_cmd_add)
 
-    p = sub.add_parser("delete", parents=[global_options], help="Delete a saved connection.")
-    _add_name(p)
+    p = sub.add_parser("delete", parents=[global_options], help="Delete saved connections.")
+    _add_selector(p)
     p.add_argument("--yes", action="store_true", help="Confirm the deletion.")
     p.set_defaults(func=_cmd_delete)
 
@@ -157,8 +185,8 @@ def build_parser() -> CliParser:
     p.add_argument("--new-name", required=True, help="New connection name.")
     p.set_defaults(func=_cmd_rename)
 
-    p = sub.add_parser("move", parents=[global_options], help="Move a connection into a folder.")
-    _add_name(p)
+    p = sub.add_parser("move", parents=[global_options], help="Move connections into a folder.")
+    _add_selector(p)
     p.add_argument("--folder", required=True, help="Destination folder, e.g. /dev/local.")
     p.set_defaults(func=_cmd_move)
 
@@ -174,9 +202,9 @@ def build_parser() -> CliParser:
     p.set_defaults(func=_cmd_clone)
 
     p = sub.add_parser(
-        "test", parents=[global_options], help="Test a saved connection through SQLcl."
+        "test", parents=[global_options], help="Test saved connections through SQLcl."
     )
-    _add_name(p)
+    _add_selector(p)
     p.set_defaults(func=_cmd_test)
 
     p = sub.add_parser("add-folder", parents=[global_options], help="Create a folder.")
@@ -243,6 +271,23 @@ def _in_folder(conn: SavedConnection, folder: str) -> bool:
     return conn.folder == wanted or conn.folder.startswith(wanted + "/")
 
 
+def _matches(name: str, pattern: str) -> bool:
+    """Return whether name matches the shell-style glob pattern, case-sensitively."""
+    return fnmatch.fnmatchcase(name, pattern)
+
+
+def _select_names(args: argparse.Namespace, store: ConnectionStore) -> list[str]:
+    """Resolve --name, --filter or --all to a sorted list of saved connection names."""
+    if args.name is not None:
+        if store.get(args.name) is None:
+            raise ValueError(f"No saved connection named {args.name!r}")
+        return [args.name]
+    names = sorted(c.name for c in store.connections())
+    if args.select_all:
+        return names
+    return [n for n in names if _matches(n, args.name_filter)]
+
+
 def _dump(data: Any) -> None:
     print(json.dumps(data, indent=2, sort_keys=True))
 
@@ -259,18 +304,17 @@ def _cmd_list(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_show(args: argparse.Namespace) -> int:
-    store = _store(args)
-    conn = store.get(args.name)
-    if conn is None:
-        raise ValueError(f"No saved connection named {args.name!r}")
+def _connection_data(
+    args: argparse.Namespace, store: ConnectionStore, conn: SavedConnection
+) -> dict[str, Any]:
     data = conn.to_dict()
     data["wallet_present"] = store.has_wallet(conn.id)
     if args.check_password:
         data["password_saved"] = sq.show_connection(_runner(args), conn.name).password_saved
-    if args.format == "json":
-        _dump(data)
-        return 0
+    return data
+
+
+def _connection_block(conn: SavedConnection, data: dict[str, Any], check_password: bool) -> str:
     lines = [
         f"Name: {conn.name}",
         f"Id: {conn.id}",
@@ -280,10 +324,22 @@ def _cmd_show(args: argparse.Namespace) -> int:
         f"Folder: {conn.folder}",
         f"Wallet file: {'present' if data['wallet_present'] else 'missing'}",
     ]
-    if args.check_password:
+    if check_password:
         lines.append(f"Password: {'saved' if data['password_saved'] else 'not saved'}")
     lines.extend(f"{key}: {value}" for key, value in conn.extra.items())
-    print("\n".join(lines))
+    return "\n".join(lines)
+
+
+def _cmd_show(args: argparse.Namespace) -> int:
+    store = _store(args)
+    conn = store.get(args.name)
+    if conn is None:
+        raise ValueError(f"No saved connection named {args.name!r}")
+    data = _connection_data(args, store, conn)
+    if args.format == "json":
+        _dump(data)
+        return 0
+    print(_connection_block(conn, data, args.check_password))
     return 0
 
 

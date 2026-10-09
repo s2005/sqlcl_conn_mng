@@ -9,7 +9,14 @@ import pytest
 from pytest_mock import MockerFixture
 
 from sqlcl_conn_mng import __version__
-from sqlcl_conn_mng.cli import _global_options, build_parser, main, render_table
+from sqlcl_conn_mng.cli import (
+    _global_options,
+    _select_names,
+    _store,
+    build_parser,
+    main,
+    render_table,
+)
 from tests.conftest import ID_DEV
 
 
@@ -379,3 +386,71 @@ def test_no_command_option_shares_a_global_option_name() -> None:
         for option in global_names:
             assert names.count(option) == 1, (name, option)
         assert len(names) == len(set(names)), name
+
+
+SELECTOR_COMMANDS = [
+    ["test"],
+    ["show"],
+    ["delete", "--yes"],
+    ["move", "--folder", "/x"],
+]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("command", SELECTOR_COMMANDS, ids=lambda c: c[0])
+def test_selector_requires_exactly_one(command: list[str]) -> None:
+    parser = build_parser()
+    for extra in (
+        [],
+        ["--name", "a", "--all"],
+        ["--filter", "a*", "--all"],
+        ["--name", "a", "--filter", "a"],
+    ):
+        with pytest.raises(SystemExit) as exc:
+            parser.parse_args([*command, *extra])
+        assert exc.value.code == 2
+    for ok in (["--name", "a"], ["--filter", "a*"], ["--all"]):
+        parser.parse_args([*command, *ok])
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("command", ["rename", "clone"])
+def test_rename_and_clone_reject_batch_selectors(command: str) -> None:
+    with pytest.raises(SystemExit) as exc:
+        build_parser().parse_args([command, "--all", "--new-name", "n"])
+    assert exc.value.code == 2
+
+
+def _select(fake_home: Path, argv: list[str]) -> list[str]:
+    args = build_parser().parse_args(["show", "--home", str(fake_home), *argv])
+    return _select_names(args, _store(args))
+
+
+@pytest.mark.unit
+def test_select_all_is_sorted(fake_home: Path) -> None:
+    assert _select(fake_home, ["--all"]) == ["Prod One", "dev_local", "root_conn"]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("pattern", "expected"),
+    [
+        ("dev_*", ["dev_local"]),
+        ("*_*", ["dev_local", "root_conn"]),
+        ("dev_loca?", ["dev_local"]),
+        ("[dr]*", ["dev_local", "root_conn"]),
+        ("DEV_*", []),
+        ("dev", []),
+        ("*", ["Prod One", "dev_local", "root_conn"]),
+        ("", []),
+    ],
+)
+def test_select_filter_glob(fake_home: Path, pattern: str, expected: list[str]) -> None:
+    assert _select(fake_home, ["--filter", pattern]) == expected
+
+
+@pytest.mark.unit
+def test_select_name_is_literal(fake_home: Path) -> None:
+    assert _select(fake_home, ["--name", "dev_local"]) == ["dev_local"]
+    with pytest.raises(ValueError, match="No saved connection named"):
+        _select(fake_home, ["--name", "dev_*"])
