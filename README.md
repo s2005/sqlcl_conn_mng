@@ -153,8 +153,9 @@ Accepted after the command (`sqlcl-conn-mng COMMAND --help` lists them), except 
 | Command | Option | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `list` | `--folder` | no | all | Only connections in this folder or below. |
+| `list` | `--filter` | no | all | Only connections whose name matches the glob; combines with `--folder` as AND. |
 | `list` | `--format` | no | `table` | `table` or `json`. |
-| `show` | `--name` | yes | - | Connection name (case-sensitive). |
+| `show` | `--name` / `--filter` / `--all` | one of the three | - | One connection by exact name (case-sensitive), every name matching a glob, or every connection. |
 | `show` | `--check-password` | no | off | Ask SQLcl whether a password is saved. |
 | `show` | `--format` | no | `table` | `table` or `json`. |
 | `folders` | `--format` | no | `table` | `table` or `json`. |
@@ -165,22 +166,23 @@ Accepted after the command (`sqlcl-conn-mng COMMAND --help` lists them), except 
 | `add` | `--replace` | no | off | Replace an existing connection of the same name. |
 | `add` | `--no-save-password` | no | off | Do not store the password. |
 | `add` | `--password-env` | no | prompt | Environment variable holding the password; otherwise a hidden prompt. |
-| `delete` | `--name` | yes | - | Connection to delete. |
+| `delete` | `--name` / `--filter` / `--all` | one of the three | - | Connection(s) to delete. |
 | `delete` | `--yes` | yes in practice | off | Confirm the deletion; refused without it. |
 | `rename` | `--name` | yes | - | Current connection name. |
 | `rename` | `--new-name` | yes | - | New connection name. |
-| `move` | `--name` | yes | - | Connection to move. |
+| `move` | `--name` / `--filter` / `--all` | one of the three | - | Connection(s) to move. |
 | `move` | `--folder` | yes | - | Destination folder, for example `/dev/local`. |
 | `clone` | `--name` | yes | - | Connection to clone. |
 | `clone` | `--new-name` | yes | - | Name of the clone. |
 | `clone` | `--user` | no | same user | User for the clone. |
 | `clone` | `--no-password` | no | off | Do not copy the saved password. |
-| `test` | `--name` | yes | - | Connection to test. |
+| `test` | `--name` / `--filter` / `--all` | one of the three | - | Connection(s) to test. |
 | `add-folder` | `--folder` | yes | - | Folder path to create, for example `/dev/local`. |
 | `delete-folder` | `--folder` | yes | - | Folder path to delete. |
 | `delete-folder` | `--force` | no | off | Also delete the connections inside, permanently. |
 | `delete-folder` | `--yes` | with `--force` | off | Confirm a forced deletion; refused without it. |
-| `export` | `--output` | yes | - | JSON file to write with all connection metadata. |
+| `export` | `--output` | yes | - | JSON file to write with the connection metadata. |
+| `export` | `--filter` | no | all | Only connections whose name matches the glob. |
 
 Notes:
 
@@ -188,6 +190,16 @@ Notes:
 - `add` saves the connection only if SQLcl can connect with the given credentials. Without `--no-save-password` the password is stored in the SQLcl wallet.
 - Names, folders, users and connect strings must not contain a newline, carriage return or double quote. A password must not contain a newline or carriage return, and must not contain both `"` and `'`.
 - `export` writes metadata only: no passwords and no wallet bytes.
+
+### Batch selection
+
+`test`, `show`, `delete` and `move` take exactly one of `--name NAME`, `--filter PATTERN` or `--all`. Giving none, or more than one, is a usage error (exit code 2). `list` and `export` take an optional `--filter`. The other commands are unchanged.
+
+- `--filter PATTERN` is a shell-style glob (`*`, `?`, `[...]`) matched case-sensitively against the whole connection name, not against the folder. Quote the pattern so the shell does not expand it: `--filter 'dev_*'`. `--filter '*'` equals `--all`.
+- The names are resolved once, sorted, before the first action runs. A batch that selects a name shared by more than one connection (possible after a SQLcl import with `-duplicates REPLACE`) is refused with exit code 1 and nothing is run, because SQLcl selects connections by name only. `show` without `--check-password` reads files only, so it still lists every duplicate record. With `--name`, output and exit codes are unchanged, and a wildcard in the value is not expanded.
+- With `--all` or `--filter`, `test`, `delete` and `move` process every selected connection even when one fails. They print `[OK] NAME` or `[FAIL] NAME: reason` per connection, then `Summary: N ok, M failed`. The exit code is 1 when any connection failed or when nothing matched (`No connections match ...`).
+- `delete` with `--all` or `--filter` still needs `--yes`; without it nothing is deleted. With it, the matched names are printed before the first deletion.
+- `show` prints a JSON list (`--format json`) or the usual blocks separated by a blank line. With `--check-password`, a failing connection is logged to stderr, the others are still shown, and the exit code is 1.
 
 ## Environment variables
 
@@ -207,12 +219,21 @@ MSYS_NO_PATHCONV=1 sqlcl-conn-mng list --folder /dev --format json
 MSYS_NO_PATHCONV=1 sqlcl-conn-mng add --name dev_local --user scott \
   --connect-string //localhost:1521/freepdb1 --password-env DB_PASSWORD --folder /dev/local
 
+# Test every connection, or only the ones named dev_*
+sqlcl-conn-mng test --all
+sqlcl-conn-mng test --filter 'dev_*'
+
+# Move matching connections into an existing folder, then delete them
+MSYS_NO_PATHCONV=1 sqlcl-conn-mng move --filter 'tmp_*' --folder /scratch
+sqlcl-conn-mng delete --filter 'tmp_*' --yes
+
 # Folder management
 MSYS_NO_PATHCONV=1 sqlcl-conn-mng add-folder --folder /dev/local
 MSYS_NO_PATHCONV=1 sqlcl-conn-mng delete-folder --folder /dev/local --force --yes
 
 # Export metadata
 MSYS_NO_PATHCONV=1 sqlcl-conn-mng export --output connections.json
+sqlcl-conn-mng export --output dev.json --filter 'dev_*'
 ```
 
 ## Store format
@@ -231,7 +252,7 @@ Summary of the SQLcl 25.4.1 store, observed empirically (the format is not docum
 | Code | Meaning |
 | --- | --- |
 | 0 | Success |
-| 1 | Operational failure (SQLcl error, unknown connection, refused destructive command) |
+| 1 | Operational failure (SQLcl error, unknown connection, refused destructive command), a batch with a failed connection, or a batch selection that matched nothing |
 | 2 | Invalid command-line usage |
 
 ## Development
