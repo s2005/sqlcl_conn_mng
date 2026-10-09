@@ -96,7 +96,7 @@ Each starts SQLcl, which takes about 10 seconds. SQLcl always exits 0, so trust 
 | Create a folder | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng add-folder --home .sqlcl --folder /dev/local` |
 | Delete an empty folder | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng delete-folder --home .sqlcl --folder /dev/local` |
 
-`test`, `show`, `delete` and `move` take exactly one of `--name NAME`, `--filter PATTERN` (case-sensitive glob on the whole name; quote it) or `--all`; none or more than one is exit 2. A batch (`--filter` or `--all`) continues after a failure, prints `[OK] NAME` or `[FAIL] NAME: reason` per connection and `Summary: N ok, M failed`, and exits 1 on any failure or when nothing matches. A batch run starts SQLcl once per connection, so allow about 10 seconds each.
+`test`, `show`, `delete` and `move` take exactly one of `--name NAME`, `--filter PATTERN` (case-sensitive glob on the whole name; quote it) or `--all`; none or more than one is exit 2. A batch (`--filter` or `--all`) continues after a failure, prints `[OK] NAME` or `[FAIL] NAME: reason` per connection and `Summary: N ok, M failed`, and exits 1 on any failure or when nothing matches. Batch `test`, `delete`, `move` and `show --check-password` are refused (exit 1) when the selection contains a name shared by several connections, because SQLcl selects by name only; plain `show` still lists every record. A batch run starts SQLcl once per connection, so allow about 10 seconds each.
 
 `test` needs a reachable database. If it fails, report the error text; do not retry with other credentials.
 

@@ -278,17 +278,26 @@ def _matches(name: str, pattern: str) -> bool:
     return fnmatch.fnmatchcase(name, pattern)
 
 
-def _select_names(args: argparse.Namespace, store: ConnectionStore) -> list[str]:
-    """Resolve --name, --filter or --all to a sorted list of saved connection names."""
+def _select_connections(args: argparse.Namespace, store: ConnectionStore) -> list[SavedConnection]:
+    """Resolve --name, --filter or --all to saved connections, sorted by name then id."""
     if args.name is not None:
-        if store.get(args.name) is None:
+        conn = store.get(args.name)
+        if conn is None:
             raise ValueError(f"No saved connection named {args.name!r}")
-        return [args.name]
-    names = sorted(c.name for c in store.connections())
+        return [conn]
+    conns = store.connections()
     if not args.select_all:
-        names = [n for n in names if _matches(n, args.name_filter)]
-    # SQLcl addresses a connection by name only, so a name shared by several connections
-    # (possible after import -duplicates REPLACE) cannot be acted on one at a time.
+        conns = [c for c in conns if _matches(c.name, args.name_filter)]
+    return conns
+
+
+def _reject_duplicate_names(conns: Sequence[SavedConnection]) -> None:
+    """Refuse a selection holding a name shared by several connections.
+
+    SQLcl addresses a connection by name only, so such a name (possible after
+    import -duplicates REPLACE) cannot be acted on one connection at a time.
+    """
+    names = [c.name for c in conns]
     shared = sorted({n for n in names if names.count(n) > 1})
     if shared:
         raise ValueError(
@@ -296,7 +305,14 @@ def _select_names(args: argparse.Namespace, store: ConnectionStore) -> list[str]
             + ", ".join(repr(n) for n in shared)
             + "; SQLcl selects connections by name, so rename or delete the duplicates first"
         )
-    return names
+
+
+def _select_names(args: argparse.Namespace, store: ConnectionStore) -> list[str]:
+    """Resolve the selector to sorted connection names for name-based SQLcl actions."""
+    conns = _select_connections(args, store)
+    if args.name is None:
+        _reject_duplicate_names(conns)
+    return [c.name for c in conns]
 
 
 def _describe_selection(args: argparse.Namespace) -> str:
@@ -305,8 +321,8 @@ def _describe_selection(args: argparse.Namespace) -> str:
     return f"--filter {args.name_filter!r}"
 
 
-def _require_matches(args: argparse.Namespace, names: list[str]) -> None:
-    if not names:
+def _require_matches(args: argparse.Namespace, selected: Sequence[object]) -> None:
+    if not selected:
         raise ValueError(f"No connections match {_describe_selection(args)}")
 
 
@@ -379,22 +395,22 @@ def _connection_block(conn: SavedConnection, data: dict[str, Any], check_passwor
 
 def _cmd_show(args: argparse.Namespace) -> int:
     store = _store(args)
-    names = _select_names(args, store)
+    conns = _select_connections(args, store)
     if args.name is None:
-        _require_matches(args, names)
+        _require_matches(args, conns)
+        if args.check_password:
+            # The password check asks SQLcl by name; metadata alone can show every record.
+            _reject_duplicate_names(conns)
     failed = 0
     shown: list[tuple[SavedConnection, dict[str, Any]]] = []
-    for name in names:
-        conn = store.get(name)
-        if conn is None:
-            raise ValueError(f"No saved connection named {name!r}")
+    for conn in conns:
         try:
             shown.append((conn, _connection_data(args, store, conn)))
         except (sq.SqlclError, StoreError, ValueError, OSError) as exc:
             if args.name is not None:
                 raise
             failed += 1
-            logger.error("%s: %s", name, exc)
+            logger.error("%s: %s", conn.name, exc)
     if args.format == "json":
         _dump(shown[0][1] if args.name is not None else [data for _, data in shown])
     else:
@@ -488,6 +504,8 @@ def _cmd_rename(args: argparse.Namespace) -> int:
 
 def _cmd_move(args: argparse.Namespace) -> int:
     names = _select_names(args, _store(args))
+    if args.name is None:
+        _require_matches(args, names)
     runner = _runner(args)
     return _run_batch(args, names, lambda name: sq.move_connection(runner, name, args.folder))
 
@@ -500,6 +518,8 @@ def _cmd_clone(args: argparse.Namespace) -> int:
 
 def _cmd_test(args: argparse.Namespace) -> int:
     names = _select_names(args, _store(args))
+    if args.name is None:
+        _require_matches(args, names)
     runner = _runner(args)
     return _run_batch(args, names, lambda name: sq.check_connection(runner, name))
 

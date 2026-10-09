@@ -689,7 +689,12 @@ def dup_home(fake_home: Path) -> Path:
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "command",
-    [["test"], ["show"], ["delete", "--yes"], ["move", "--folder", "/x"]],
+    [
+        ["test"],
+        ["show", "--check-password"],
+        ["delete", "--yes"],
+        ["move", "--folder", "/x"],
+    ],
     ids=lambda c: c[0],
 )
 @pytest.mark.parametrize("selector", [["--all"], ["--filter", "dev_*"]])
@@ -715,3 +720,33 @@ def test_batch_skipping_the_duplicate_name_still_runs(
     mocker.patch("sqlcl_conn_mng.sqlcl.check_connection", return_value="ok")
     assert main(["test", *_base(dup_home), "--filter", "root_*"]) == 0
     assert "[OK] root_conn" in capsys.readouterr().out
+
+
+@pytest.mark.unit
+def test_plain_show_lists_every_duplicate_record(
+    dup_home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """P2 review: metadata-only show needs no SQLcl, so it can show both records."""
+    argv = ["show", "--home", str(dup_home), "--filter", "dev_*", "--format", "json"]
+    assert main(argv) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [c["name"] for c in data] == ["dev_local", "dev_local"]
+    assert len({c["id"] for c in data}) == 2
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("command", [["test"], ["move", "--folder", "/x"]])
+def test_empty_batch_is_reported_before_sqlcl_is_resolved(
+    command: list[str],
+    fake_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """P2 review: no match must say so even when SQLcl is not installed."""
+    monkeypatch.delenv("SQLCL_BIN", raising=False)
+    mocker.patch("sqlcl_conn_mng.sqlcl.shutil.which", return_value=None)
+    argv = [*command, "--home", str(fake_home), "--filter", "nomatch*"]
+    assert main(argv) == 1
+    assert "No connections match" in caplog.text
+    assert "SQLcl not found" not in caplog.text

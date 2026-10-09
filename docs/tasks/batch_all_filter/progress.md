@@ -66,3 +66,5 @@ Requirements: REQ-7, REQ-8
 ## Review Feedback (PR #3)
 
 - [x] P1: Preserve connection identity when selecting duplicate names (fixed - a batch that selects a shared name is refused with `Ambiguous selection`)
+- [x] P2: Keep duplicate records available to plain show (fixed - guard limited to name-based operations)
+- [x] P2: Check for empty batches before resolving SQLcl (fixed - `_require_matches` before `_runner` in `test` and `move`)
