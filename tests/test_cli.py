@@ -1085,3 +1085,19 @@ def test_p1_password_update_imported_without_target_fails_before_connect(
     run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
     assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR")) == 1
     run.assert_not_called()
+
+
+@pytest.mark.unit
+def test_p2_unsupported_type_with_password_is_refused_before_connect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+) -> None:
+    """P2 (PR #4): the type check must run before the password step replaces credentials."""
+    monkeypatch.setenv("FAKE_PWD_VAR", SECRET)
+    home = tmp_path / "tns_pw"
+    write_connection(home, UPD_ID_A, "name=alpha\ntype=ORACLE_TNS\ntnsAlias=a\nuserName=scott\n")
+    before = _tree(home)
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    argv = _upd_argv(home, "--password-env", "FAKE_PWD_VAR", "--connect-string", "//x:1/y")
+    assert main(argv) == 1
+    assert _tree(home) == before
+    run.assert_not_called()

@@ -16,7 +16,7 @@ from typing import Any
 from sqlcl_conn_mng import __version__
 from sqlcl_conn_mng import sqlcl as sq
 from sqlcl_conn_mng.models import Folder, SavedConnection
-from sqlcl_conn_mng.store import ConnectionStore, StoreError, resolve_home
+from sqlcl_conn_mng.store import CONNECT_STRING_TYPES, ConnectionStore, StoreError, resolve_home
 
 logger = logging.getLogger(__name__)
 
@@ -545,6 +545,12 @@ def _update_changes(
         changes["userName"] = sq.validate_value(args.user, "user")
     if args.connect_string is not None:
         changes["connectionString"] = sq.validate_value(args.connect_string, "connect string")
+        # Checked here, before any password step, so a refused type never costs a password change.
+        if conn.type not in CONNECT_STRING_TYPES:
+            raise ValueError(
+                f"Cannot change the connect string of a connection of type {conn.type!r}: "
+                f"only {', '.join(sorted(CONNECT_STRING_TYPES))} are supported"
+            )
     return changes
 
 
