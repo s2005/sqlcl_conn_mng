@@ -1,4 +1,4 @@
-"""Parser for Java .properties files as written by java.util.Properties."""
+"""Parser and writer for Java .properties files as written by java.util.Properties."""
 
 from __future__ import annotations
 
@@ -10,6 +10,9 @@ _SEPARATORS = "=:"
 _SIMPLE_ESCAPES = {"t": "\t", "n": "\n", "r": "\r", "f": "\f"}
 _HEX_DIGITS = 4
 _HEX_PATTERN = re.compile(r"[0-9a-fA-F]{4}")
+_WRITE_ESCAPES = {"\\": "\\\\", "\t": "\\t", "\n": "\\n", "\r": "\\r", "\f": "\\f"}
+_SPECIAL_CHARS = "=:#!"
+_FIRST_PRINTABLE = 0x20
 
 
 def _logical_lines(text: str) -> list[str]:
@@ -89,3 +92,27 @@ def parse_properties(text: str) -> dict[str, str]:
         key, value = _split_key_value(line)
         result[key] = value
     return result
+
+
+def _escape(text: str, is_key: bool) -> str:
+    """Escape one key or value the way java.util.Properties.store does."""
+    out: list[str] = []
+    for index, char in enumerate(text):
+        if char in _WRITE_ESCAPES:
+            out.append(_WRITE_ESCAPES[char])
+        elif char == " " and (is_key or index == 0):
+            out.append("\\ ")
+        elif char in _SPECIAL_CHARS:
+            out.append("\\" + char)
+        elif ord(char) < _FIRST_PRINTABLE:
+            out.append(f"\\u{ord(char):04x}")
+        else:
+            out.append(char)
+    return "".join(out)
+
+
+def format_properties(props: dict[str, str]) -> str:
+    """Render a dict as Java properties text: key=value lines, LF endings, final LF, no header."""
+    return "".join(
+        f"{_escape(key, True)}={_escape(value, False)}\n" for key, value in props.items()
+    )

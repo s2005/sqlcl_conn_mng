@@ -1,4 +1,4 @@
-"""Tests for the read-only connection store."""
+"""Tests for the connection store."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from sqlcl_conn_mng.store import ConnectionStore, StoreError, resolve_home
-from tests.conftest import ID_DEV, ID_PROD, ID_ROOT
+from tests.conftest import ID_DEV, ID_PROD, ID_ROOT, write_connection
 
 
 @pytest.mark.unit
@@ -78,3 +78,95 @@ def test_resolve_home_precedence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert resolve_home(None, env) == tmp_path / "env"
     monkeypatch.chdir(tmp_path)
     assert resolve_home(None, {}) == tmp_path / ".sqlcl"
+
+
+def _plain_store(tmp_path: Path, props_text: str) -> tuple[Path, Path]:
+    """Create a one-connection store and return its home and properties file."""
+    home = tmp_path / "plain"
+    write_connection(home, ID_DEV, props_text)
+    return home, home / "connections" / ID_DEV / "dbtools.properties"
+
+
+PLAIN = "name=dev\ntype=ORACLE_DATABASE\nconnectionString=//h\\:1521/s\nuserName=scott\nextra=1\n"
+
+
+@pytest.mark.unit
+def test_update_properties_changes_only_given_keys(tmp_path: Path) -> None:
+    home, props = _plain_store(tmp_path, PLAIN)
+    wallet = home / "connections" / ID_DEV / "credentials.sso"
+    wallet_before = wallet.read_bytes()
+    ConnectionStore(home).update_properties(ID_DEV, {"userName": "hr", "name": "dev2"})
+    assert props.read_bytes() == (
+        b"name=dev2\ntype=ORACLE_DATABASE\nconnectionString=//h\\:1521/s\nuserName=hr\nextra=1\n"
+    )
+    assert wallet.read_bytes() == wallet_before
+    assert sorted(p.name for p in props.parent.iterdir()) == [
+        "credentials.sso",
+        "dbtools.properties",
+    ]
+
+
+@pytest.mark.unit
+def test_update_properties_leaves_folders_json_alone(fake_home: Path) -> None:
+    folders = fake_home / "connection_folders" / "folders.json"
+    before = folders.read_bytes()
+    home, _ = _plain_store(fake_home.parent, PLAIN)
+    ConnectionStore(home).update_properties(ID_DEV, {"connectionString": "//x:1/y"})
+    assert folders.read_bytes() == before
+
+
+@pytest.mark.unit
+def test_update_properties_round_trips_special_values(tmp_path: Path) -> None:
+    home, _ = _plain_store(tmp_path, PLAIN)
+    store = ConnectionStore(home)
+    weird = " we:ird=#!\\ name\\u00e9"
+    store.update_properties(ID_DEV, {"name": weird})
+    found = store.connections()[0]
+    assert found.name == weird
+    assert found.user_name == "scott"
+    assert found.extra == {"extra": "1"}
+
+
+@pytest.mark.unit
+def test_update_properties_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(StoreError):
+        ConnectionStore(tmp_path / "none").update_properties(ID_DEV, {"name": "x"})
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("text", ["#note\n" + PLAIN, "! note\n" + PLAIN, PLAIN + "long=a\\\nb\n"])
+def test_update_properties_refuses_comment_and_continuation(tmp_path: Path, text: str) -> None:
+    home, props = _plain_store(tmp_path, text)
+    before = props.read_bytes()
+    with pytest.raises(StoreError):
+        ConnectionStore(home).update_properties(ID_DEV, {"name": "x"})
+    assert props.read_bytes() == before
+
+
+@pytest.mark.unit
+def test_update_properties_refuses_other_keys(tmp_path: Path) -> None:
+    home, props = _plain_store(tmp_path, PLAIN)
+    before = props.read_bytes()
+    with pytest.raises(StoreError):
+        ConnectionStore(home).update_properties(ID_DEV, {"type": "X"})
+    assert props.read_bytes() == before
+
+
+@pytest.mark.unit
+def test_update_properties_failed_replace_leaves_no_temp_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home, props = _plain_store(tmp_path, PLAIN)
+    before = props.read_bytes()
+
+    def boom(*_args: object) -> None:
+        raise OSError("locked")
+
+    monkeypatch.setattr("sqlcl_conn_mng.store.os.replace", boom)
+    with pytest.raises(OSError, match="locked"):
+        ConnectionStore(home).update_properties(ID_DEV, {"name": "x"})
+    assert props.read_bytes() == before
+    assert sorted(p.name for p in props.parent.iterdir()) == [
+        "credentials.sso",
+        "dbtools.properties",
+    ]

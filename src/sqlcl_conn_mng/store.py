@@ -1,16 +1,19 @@
-"""Read-only access to the SQLcl saved-connection store."""
+"""Access to the SQLcl saved-connection store: read everything, rewrite only dbtools.properties."""
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
+import shutil
+import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 from sqlcl_conn_mng.models import ROOT_FOLDER, Folder, SavedConnection
-from sqlcl_conn_mng.properties import parse_properties
+from sqlcl_conn_mng.properties import format_properties, parse_properties
 
 HOME_ENV_VAR = "SQLCL_CONN_HOME"
 PROPERTIES_FILE = "dbtools.properties"
@@ -18,7 +21,10 @@ WALLET_FILE = "credentials.sso"
 CONNECTIONS_DIR = "connections"
 FOLDERS_FILE = Path("connection_folders") / "folders.json"
 KNOWN_KEYS = {"name", "type", "connectionString", "userName"}
+WRITABLE_KEYS = frozenset({"name", "connectionString", "userName"})
 _ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{22}")
+_COMMENT_MARKERS = "#!"
+_LINE_BREAK = re.compile(r"\r\n|\r|\n")
 
 
 class StoreError(Exception):
@@ -62,8 +68,23 @@ def walk_folders(folders: list[Folder]) -> list[Folder]:
     return flat
 
 
+def _has_comment_or_continuation(text: str) -> bool:
+    """Report a comment line or a continuation line, which a rewrite would not preserve."""
+    for raw in _LINE_BREAK.split(text):
+        line = raw.lstrip(" \t\f")
+        if line.startswith(tuple(_COMMENT_MARKERS)):
+            return True
+        if (len(line) - len(line.rstrip("\\"))) % 2 == 1:
+            return True
+    return False
+
+
 class ConnectionStore:
-    """Read-only view of a SQLcl store root (the directory given to -home)."""
+    """View of a SQLcl store root (the directory given to -home).
+
+    Everything is read-only except update_properties, which rewrites one dbtools.properties.
+    The wallet and folders.json are never written.
+    """
 
     def __init__(self, home: Path) -> None:
         self.home = home
@@ -123,6 +144,37 @@ class ConnectionStore:
             if conn.name == name:
                 return conn
         return None
+
+    def update_properties(self, conn_id: str, changes: Mapping[str, str]) -> None:
+        """Set name, userName and/or connectionString in one dbtools.properties, atomically.
+
+        Other keys, their order and the connection id stay as they are. A file holding a comment
+        or a continuation line is refused, because the rewrite would lose that text.
+        """
+        unknown = set(changes) - WRITABLE_KEYS
+        if unknown:
+            raise StoreError(f"Cannot write properties: {', '.join(sorted(unknown))}")
+        target = self.home / CONNECTIONS_DIR / conn_id / PROPERTIES_FILE
+        if not target.is_file():
+            raise StoreError(f"Connection properties file not found for id {conn_id}")
+        text = _read_text(target)
+        if _has_comment_or_continuation(text):
+            raise StoreError(
+                f"Refusing to rewrite {PROPERTIES_FILE} for id {conn_id}: "
+                "it has a comment or a continuation line"
+            )
+        props = parse_properties(text)
+        props.update(changes)
+        fd, tmp_name = tempfile.mkstemp(dir=target.parent, prefix=".dbtools.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(format_properties(props).encode("utf-8"))
+            shutil.copymode(target, tmp_name)
+            os.replace(tmp_name, target)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_name)
+            raise
 
     def has_wallet(self, conn_id: str) -> bool:
         """Report whether credentials.sso exists; the file is never opened."""
