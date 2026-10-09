@@ -89,6 +89,13 @@
 - **Recommended**: (a) - findings.md, "Case-Insensitive Lookup Defects", advises refusing an ambiguous lookup rather than reproducing it.
 - **Answer**: (a) - decided by reading `docs/tasks/sqlcl_jar_store_investigation/findings.md`. The connection being updated is excluded from the comparison, so a case-only rename of itself is allowed.
 
+## Q13: What happens to the connect string of an imported connection?
+
+- **Why it matters**: SQLcl reads an imported connection (type `ORACLE_BASIC`) from `host`, `port` and `serviceName` and ignores `connectionString`. Observed with SQLcl 25.4.1: after `update --connect-string //badhost.invalid:1/nosvc`, `connmgr show` still printed the old host and `sql -name NAME` still connected to the old database.
+- **Options**: (a) convert the file the way SQLcl does on `connect -save -replace` (`ORACLE_DATABASE`, target keys dropped, SQLcl key order); (b) document only; (c) rewrite `host`, `port`, `serviceName` from the new string; (d) refuse.
+- **Recommended**: (a) - observed SQLcl behavior, no parser, handles descriptors.
+- **Answer**: (a) - decided by the user's instruction to fix it within this task. Other types are refused for `--connect-string`. See `notes.md`, D1, and `solution_01.md`.
+
 ## Resolution Summary
 
 | ID | Status | Carried by |
@@ -105,3 +112,4 @@
 | Q10 | Answered | REQ-2 |
 | Q11 | Answered | REQ-2, REQ-6 |
 | Q12 | Answered | REQ-4 |
+| Q13 | Answered | REQ-2 |

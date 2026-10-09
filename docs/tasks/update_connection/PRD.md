@@ -18,6 +18,8 @@ The tool can `add` (with `--replace`), `rename`, `move`, `clone`, `delete` and `
 
 `--new-name`, `--user` and `--connect-string` without a password source are written by Python into the connection's `dbtools.properties`: only the values `name`, `userName`, `connectionString` change; the id, every other key and its order, `folders.json` and `credentials.sso` stay byte-identical. The file is written atomically (temporary file, then replace), as UTF-8 with LF endings, a final LF and the Java escaping in `findings.md`. No SQLcl process runs. A saved password is left as is and no warning is printed.
 
+One exception to "only three values change": SQLcl reads an imported connection (type `ORACLE_BASIC`, target in `host`, `port` and `serviceName`) from those keys and ignores `connectionString`. When `--connect-string` is given for such a connection, the file is rewritten the way SQLcl rewrites it on `connect -save -replace`: `type=ORACLE_DATABASE`, `host`, `port` and `serviceName` removed, keys ordered `name`, `type`, `connectionString`, `userName`, remaining keys after. `--connect-string` on any type other than `ORACLE_DATABASE` and `ORACLE_BASIC` is refused (exit 1, nothing written). `--new-name` and `--user` never change `type` or the target keys.
+
 ### REQ-3: Password change through SQLcl
 
 With `--password-env` or `--prompt-password`, the password is replaced with `connect -save NAME -replace -savepwd` using the new or current user and connect string. `--no-save-password` drops `-savepwd`. The connection id is kept. The password is read as `add` reads it, travels on stdin only, and the connection is changed only when SQLcl connects.
@@ -51,7 +53,8 @@ Unit tests cover the property writer, option validation, ordering and failures. 
 
 - **AC-1** - `update --help` lists all options; no change option, unknown name, and `--no-save-password` alone each exit 1 with a message and write nothing; both password sources together is a usage error (exit 2) (REQ-1)
 - **AC-2** - `update --name X --user U2`, `--connect-string C2` and `--new-name N2` each change only that value in `dbtools.properties`; id, other keys and order, `folders.json` and `credentials.sso` are unchanged; no SQLcl process is started (REQ-2)
-- **AC-3** - after a metadata update, `list`, `show` and real SQLcl `connmgr show` report the new values (REQ-2, REQ-7)
+- **AC-3** - after a metadata update, `list`, `show` and real SQLcl `connmgr show` report the new values, for a connection SQLcl saved and for one imported from SQL Developer (REQ-2, REQ-7)
+- **AC-11** - `--connect-string` on an imported (`ORACLE_BASIC`) connection converts it to `ORACLE_DATABASE` with the SQLcl key order and no `host`, `port` or `serviceName`; on another type it exits 1 and writes nothing; `--user` and `--new-name` leave an imported file's type and target keys alone (REQ-2)
 - **AC-4** - `update --name X --password-env VAR` runs `connect -save X -replace -savepwd` with the stored user and connect string, keeps the id, and `show --check-password` reports a saved password (REQ-3)
 - **AC-5** - `--no-save-password` leaves no saved password; `--prompt-password` reads a hidden prompt (REQ-3)
 - **AC-6** - a wrong password leaves `dbtools.properties` and `credentials.sso` unchanged and exits 1; a colliding new name (any letter case), a missing connection and an invalid value are refused before any write (REQ-4)

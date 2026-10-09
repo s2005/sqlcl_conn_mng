@@ -22,6 +22,14 @@ CONNECTIONS_DIR = "connections"
 FOLDERS_FILE = Path("connection_folders") / "folders.json"
 KNOWN_KEYS = {"name", "type", "connectionString", "userName"}
 WRITABLE_KEYS = frozenset({"name", "connectionString", "userName"})
+TYPE_DATABASE = "ORACLE_DATABASE"
+TYPE_BASIC = "ORACLE_BASIC"
+# Types whose connect string SQLcl reads from connectionString (TYPE_DATABASE), or can be
+# converted to that form the way SQLcl does itself on connect -save -replace (TYPE_BASIC).
+CONNECT_STRING_TYPES = frozenset({TYPE_DATABASE, TYPE_BASIC})
+# The keys that give an ORACLE_BASIC connection its target; SQLcl reads them instead of
+# connectionString and drops them when it rewrites the connection as ORACLE_DATABASE.
+BASIC_TARGET_KEYS = frozenset({"host", "port", "serviceName"})
 _ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{22}")
 _COMMENT_MARKERS = "#!"
 _LINE_BREAK = re.compile(r"\r\n|\r|\n")
@@ -77,6 +85,31 @@ def _has_comment_or_continuation(text: str) -> bool:
         if (len(line) - len(line.rstrip("\\"))) % 2 == 1:
             return True
     return False
+
+
+def _with_connect_string_form(props: dict[str, str]) -> dict[str, str]:
+    """Return props in the form where connectionString is what SQLcl reads.
+
+    An ORACLE_BASIC connection (imported from SQL Developer) is read from host, port and
+    serviceName, so a new connectionString would be ignored. SQLcl itself rewrites such a
+    connection as ORACLE_DATABASE without those keys when it saves it again; this does the same,
+    in the key order SQLcl writes. ORACLE_DATABASE props are returned unchanged.
+    """
+    kind = props.get("type", "")
+    if kind == TYPE_DATABASE:
+        return props
+    if kind != TYPE_BASIC:
+        raise StoreError(
+            f"Cannot change the connect string of a connection of type {kind!r}: "
+            f"only {TYPE_DATABASE} and {TYPE_BASIC} are supported"
+        )
+    converted = {"name": props.get("name", ""), "type": TYPE_DATABASE}
+    converted["connectionString"] = props.get("connectionString", "")
+    if "userName" in props:
+        converted["userName"] = props["userName"]
+    skipped = BASIC_TARGET_KEYS | set(converted)
+    converted.update({k: v for k, v in props.items() if k not in skipped})
+    return converted
 
 
 class ConnectionStore:
@@ -149,7 +182,9 @@ class ConnectionStore:
         """Set name, userName and/or connectionString in one dbtools.properties, atomically.
 
         Other keys, their order and the connection id stay as they are. A file holding a comment
-        or a continuation line is refused, because the rewrite would lose that text.
+        or a continuation line is refused, because the rewrite would lose that text. A new
+        connectionString on an ORACLE_BASIC connection converts it to ORACLE_DATABASE as SQLcl
+        does (host, port and serviceName are dropped); any other type is refused.
         """
         unknown = set(changes) - WRITABLE_KEYS
         if unknown:
@@ -164,6 +199,8 @@ class ConnectionStore:
                 "it has a comment or a continuation line"
             )
         props = parse_properties(text)
+        if "connectionString" in changes:
+            props = _with_connect_string_form(props)
         props.update(changes)
         fd, tmp_name = tempfile.mkstemp(dir=target.parent, prefix=".dbtools.", suffix=".tmp")
         try:

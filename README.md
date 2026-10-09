@@ -2,7 +2,7 @@
 
 Inspect and manage [Oracle SQLcl](https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/) saved connections.
 
-Read operations (`list`, `show`, `folders`, `export`) parse the SQLcl store files directly and do not need SQLcl. Every write operation runs SQLcl itself, because SQLcl is the only supported writer of the store. The tool never reads `credentials.sso` (it only checks that the file exists) and never writes the store from Python.
+Read operations (`list`, `show`, `folders`, `export`) parse the SQLcl store files directly and do not need SQLcl. Every write operation runs SQLcl itself, because SQLcl is the only supported writer of the store, with one exception: `update` changes a name, user or connect string by rewriting that connection's `dbtools.properties` from Python. The tool never reads or writes `credentials.sso` (it only checks that the file exists), and never writes `folders.json`.
 
 ## Requirements
 
@@ -170,6 +170,13 @@ Accepted after the command (`sqlcl-conn-mng COMMAND --help` lists them), except 
 | `delete` | `--yes` | yes in practice | off | Confirm the deletion; refused without it. |
 | `rename` | `--name` | yes | - | Current connection name. |
 | `rename` | `--new-name` | yes | - | New connection name. |
+| `update` | `--name` | yes | - | Connection to update (one connection; no `--filter` or `--all`). |
+| `update` | `--new-name` | no | unchanged | New connection name. |
+| `update` | `--user` | no | unchanged | New database user. |
+| `update` | `--connect-string` | no | unchanged | New connect string. |
+| `update` | `--password-env` | no | unchanged | Change the password to the value of this environment variable. Excludes `--prompt-password`. |
+| `update` | `--prompt-password` | no | off | Change the password to a value typed at a hidden prompt. Excludes `--password-env`. |
+| `update` | `--no-save-password` | no | off | With a new password: do not store it. Needs a password source. |
 | `move` | `--name` / `--filter` / `--all` | one of the three | - | Connection(s) to move. |
 | `move` | `--folder` | yes | - | Destination folder, for example `/dev/local`. |
 | `clone` | `--name` | yes | - | Connection to clone. |
@@ -190,6 +197,12 @@ Notes:
 - `add` saves the connection only if SQLcl can connect with the given credentials. Without `--no-save-password` the password is stored in the SQLcl wallet.
 - Names, folders, users and connect strings must not contain a newline, carriage return or double quote. A password must not contain a newline or carriage return, and must not contain both `"` and `'`.
 - `export` writes metadata only: no passwords and no wallet bytes.
+- `update` needs at least one change option; none, an unknown name, or `--no-save-password` alone exits 1 and writes nothing. Giving both `--password-env` and `--prompt-password` is a usage error (exit code 2).
+- `update` without a password source writes `--new-name`, `--user` and `--connect-string` into the connection's `dbtools.properties` and starts no SQLcl. Only those three values change; the connection id, every other key and its order, `folders.json` and `credentials.sso` stay byte-identical. The file is replaced atomically. A file with a comment or a continuation line is refused, because the rewrite would lose that text. The new values are not checked against the database.
+- A connection imported from SQL Developer has type `ORACLE_BASIC`, and SQLcl reads its target from `host`, `port` and `serviceName` and ignores `connectionString`. So `--connect-string` on such a connection rewrites the file the way SQLcl does when it saves the connection again: `type` becomes `ORACLE_DATABASE`, `host`, `port` and `serviceName` are removed, and the keys are ordered `name`, `type`, `connectionString`, `userName`. `--connect-string` on any other connection type is refused (exit code 1, nothing written). `--user` and `--new-name` never change the type or those keys.
+- A saved password is not changed by a user or connect string update without a password source, so it can stop matching the new user or URL. Give a password source to replace it.
+- `update` with `--password-env` or `--prompt-password` replaces the password with `connect -save NAME -replace` through SQLcl, using the new or current user and connect string. The connection is changed only when SQLcl connects; a failed connect leaves the store unchanged. The password is stored unless `--no-save-password` is given, and the connection id is kept.
+- `update` checks everything first (the connection exists and its name is unique, the values pass the same checks as `add`, a new name differs case-insensitively from every other connection), then runs the password step, then writes the file. If the file write fails after the password step, the error says the password was already replaced.
 
 ### Batch selection
 
@@ -207,7 +220,7 @@ Notes:
 | --- | --- | --- |
 | `SQLCL_CONN_HOME` | all commands | Store root when `--home` is not given. |
 | `SQLCL_BIN` | commands that run SQLcl | Path to `sql` when `--sqlcl` is not given. |
-| Name given to `--password-env` | `add` | Holds the password. |
+| Name given to `--password-env` | `add`, `update` | Holds the password. |
 
 ## Examples
 
@@ -218,6 +231,14 @@ MSYS_NO_PATHCONV=1 sqlcl-conn-mng list --folder /dev --format json
 # Save a connection with the password from an environment variable, then file it
 MSYS_NO_PATHCONV=1 sqlcl-conn-mng add --name dev_local --user scott \
   --connect-string //localhost:1521/freepdb1 --password-env DB_PASSWORD --folder /dev/local
+
+# Change only the user, or only the password (from an environment variable)
+sqlcl-conn-mng update --name dev_local --user hr
+sqlcl-conn-mng update --name dev_local --password-env DB_PASSWORD
+
+# Change the name, connect string and password in one call
+sqlcl-conn-mng update --name dev_local --new-name dev_main \
+  --connect-string //localhost:1521/freepdb2 --prompt-password
 
 # Test every connection, or only the ones named dev_*
 sqlcl-conn-mng test --all
@@ -243,7 +264,7 @@ Summary of the SQLcl 25.4.1 store, observed empirically (the format is not docum
 - The store root defaults to `.sqlcl` in the current directory; run the tool from `<repo-root>` so it uses `<repo-root>/.sqlcl`. That folder is gitignored because it holds wallets with saved passwords. SQLcl's own default when no `-home` is given is `<home>/.sqlcl` in the user's home directory; this tool always passes `-home` explicitly. SQLcl's `-home <dir>` option points at that root directly.
 - `<home>/connections/<id>/` holds one saved connection. `<id>` is an opaque 22-character string (`[A-Za-z0-9_-]`) and is not derived from the name, so connections are looked up by the `name` property.
 - Each connection directory has `dbtools.properties` and `credentials.sso`. The latter is an Oracle auto-login wallet and always exists, with or without a saved password, so its size says nothing about password presence. Use `show --check-password` for that.
-- `dbtools.properties` is a Java properties file with the keys `name`, `type`, `connectionString` and `userName`. It uses Java escaping, for example `//host\:1521/svc`. Unknown keys are kept in `extra`.
+- `dbtools.properties` is a Java properties file with the keys `name`, `type`, `connectionString` and `userName`. It uses Java escaping, for example `//host\:1521/svc`. Unknown keys are kept in `extra`. `update` rewrites this file with the same escaping (UTF-8, LF endings, no header), which SQLcl reads back.
 - Folders live in `<home>/connection_folders/folders.json` as nested objects with `name`, `connections` (connection ids) and `folders`. A connection not referenced by any folder is at the root `/`. The file may be absent.
 - SQLcl always exits with status 0, even on failure, so this tool detects success from SQLcl's output text.
 

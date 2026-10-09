@@ -170,3 +170,50 @@ def test_update_properties_failed_replace_leaves_no_temp_file(
         "credentials.sso",
         "dbtools.properties",
     ]
+
+
+BASIC = "name=imp\ntype=ORACLE_BASIC\nhost=h1\nport=1521\nserviceName=s1\nuserName=scott\n"
+
+
+@pytest.mark.unit
+def test_update_properties_connect_string_converts_basic_like_sqlcl(tmp_path: Path) -> None:
+    home, props = _plain_store(tmp_path, BASIC)
+    ConnectionStore(home).update_properties(ID_DEV, {"connectionString": "//h2:1/s2"})
+    assert props.read_bytes() == (
+        b"name=imp\ntype=ORACLE_DATABASE\nconnectionString=//h2\\:1/s2\nuserName=scott\n"
+    )
+    found = ConnectionStore(home).connections()[0]
+    assert (found.type, found.connect_string, found.extra) == ("ORACLE_DATABASE", "//h2:1/s2", {})
+
+
+@pytest.mark.unit
+def test_update_properties_basic_keeps_unrelated_keys_and_applies_other_changes(
+    tmp_path: Path,
+) -> None:
+    home, props = _plain_store(tmp_path, BASIC + "role=SYSDBA\n")
+    changes = {"connectionString": "//h2:1/s2", "userName": "hr", "name": "imp2"}
+    ConnectionStore(home).update_properties(ID_DEV, changes)
+    assert props.read_bytes() == (
+        b"name=imp2\ntype=ORACLE_DATABASE\nconnectionString=//h2\\:1/s2\nuserName=hr\nrole=SYSDBA\n"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("changes", [{"userName": "hr"}, {"name": "imp2"}])
+def test_update_properties_basic_untouched_without_connect_string(
+    tmp_path: Path, changes: dict[str, str]
+) -> None:
+    home, props = _plain_store(tmp_path, BASIC)
+    ConnectionStore(home).update_properties(ID_DEV, changes)
+    text = props.read_text(encoding="utf-8")
+    assert "type=ORACLE_BASIC\nhost=h1\nport=1521\nserviceName=s1\n" in text
+    assert "connectionString" not in text
+
+
+@pytest.mark.unit
+def test_update_properties_connect_string_refused_for_other_type(tmp_path: Path) -> None:
+    home, props = _plain_store(tmp_path, "name=x\ntype=ORACLE_TNS\ntnsAlias=a\nuserName=u\n")
+    before = props.read_bytes()
+    with pytest.raises(StoreError, match="ORACLE_TNS"):
+        ConnectionStore(home).update_properties(ID_DEV, {"connectionString": "//h:1/s"})
+    assert props.read_bytes() == before

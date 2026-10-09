@@ -80,11 +80,12 @@ The feature can be accepted when all items are true:
 
 - [x] AC-1 - option rules and errors - verified by: Phase 3 verification, `tests/test_cli.py`
 - [x] AC-2 - metadata-only update touches one value and no SQLcl process starts - verified by: Phase 2 and Phase 3 verification
-- [ ] AC-3 - SQLcl `connmgr show` reads the Python-written values - verified by: Phase 4 verification, `tests/integration/test_update_compat.py`
-- [ ] AC-4 - password-only update keeps the id and saves the password - verified by: Phase 3 and Phase 4 verification
-- [ ] AC-5 - `--no-save-password` and `--prompt-password` - verified by: Phase 3 and Phase 4 verification
+- [x] AC-3 - SQLcl `connmgr show` reads the Python-written values, saved and imported connections - verified by: Phase 4 verification, `tests/integration/test_update_compat.py`
+- [x] AC-4 - password-only update keeps the id and saves the password - verified by: Phase 3 and Phase 4 verification
+- [x] AC-5 - `--no-save-password` and `--prompt-password` - verified by: Phase 3 and Phase 4 verification
 - [x] AC-6 - failed connect and refused inputs leave the store unchanged - verified by: Phase 3 verification
 - [x] AC-7 - combined update applies all changes in order - verified by: Phase 3 verification
 - [x] AC-8 - no password in output, logs or the SQLcl argument list - verified by: Phase 3 verification
-- [ ] AC-9 - README, SKILL.md and version updated - verified by: Phase 4 verification, `sqlcl-conn-mng --version`
-- [ ] AC-10 - `make check`, `make unit`, `make integration` pass - verified by: Linter and Regression Check sections
+- [x] AC-9 - README, SKILL.md and version updated - verified by: Phase 4 verification, `sqlcl-conn-mng --version`
+- [x] AC-10 - `make check`, `make unit`, `make integration` pass - verified by: Linter and Regression Check sections
+- [x] AC-11 - imported connection converted, other types refused, `--user` and `--new-name` leave type and target keys alone - verified by: Phase 2 and Phase 3 verification, `tests/integration/test_update_compat.py`

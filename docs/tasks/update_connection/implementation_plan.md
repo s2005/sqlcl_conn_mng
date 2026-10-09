@@ -57,8 +57,11 @@ Requirements: REQ-2
 - `properties.py`: `format_properties(props)` per `analysis.md`.
 - `store.py`: `ConnectionStore.update_properties(conn_id, changes)` with atomic replace, comment and continuation-line refusal, UTF-8 and LF; update docstrings.
 
+- `store.py`: when the changes hold a `connectionString`, convert an `ORACLE_BASIC` file to the `ORACLE_DATABASE` form SQLcl writes and refuse any other type (Q13, `solution_01.md`).
+
 ### Test Work (Phase 2)
 
+- `tests/test_store.py` also covers the conversion, its key order, the untouched `--user` / `--new-name` cases and the refused type.
 - `tests/test_properties.py`: escaping cases (backslash, `:` `=` `#` `!`, leading space, control characters, non-ASCII) and `parse(format(p)) == p`.
 - `tests/test_store.py`: untouched keys, order, wallet and `folders.json` bytes; no temp file left; missing file; comment line refused.
 
@@ -81,7 +84,7 @@ Conditional on Phase 1: the order "password step first, file write second" and t
 
 ### Test Work (Phase 3)
 
-- `tests/test_cli.py`: AC-1, AC-2, AC-4 (fake runner arguments), AC-5, AC-6, AC-7, AC-8 with a fake runner and a temporary store.
+- `tests/test_cli.py`: AC-1, AC-2, AC-11, AC-4 (fake runner arguments), AC-5, AC-6, AC-7, AC-8 with a fake runner and a temporary store.
 
 ### Verification (Phase 3)
 
@@ -93,7 +96,7 @@ Requirements: REQ-2, REQ-3, REQ-6, REQ-7
 
 ### Implementation Work (Phase 4)
 
-- `tests/integration/test_update_compat.py`: Python-edited name, user and connect string read back by `connmgr show` and `list`; password change keeps the id and follows `--no-save-password`.
+- `tests/integration/test_update_compat.py`: Python-edited name, user and connect string read back by `connmgr show` and `list`, on a connection SQLcl saved and on one imported from SQL Developer; password change keeps the id and follows `--no-save-password`.
 - `README.md`: command table rows, notes, example, intro and store-format statements, stale-password caveat. `SKILL.md`: add `update`.
 - `pyproject.toml` to `0.4.0`, `uv lock`, `uv tool install --from . sqlcl-conn-mng --reinstall`, check `--version`.
 - Remove the Phase 1 probe leftovers from the working tree if any were created.
@@ -111,7 +114,7 @@ Requirements: REQ-2, REQ-3, REQ-6, REQ-7
 | REQ | Phase | Acceptance Criteria |
 | --- | ----- | ------------------- |
 | REQ-1 | Phase 3 | AC-1 |
-| REQ-2 | Phase 2, Phase 3, Phase 4 | AC-2, AC-3 |
+| REQ-2 | Phase 2, Phase 3, Phase 4 | AC-2, AC-3, AC-11 |
 | REQ-3 | Phase 3, Phase 4 | AC-4, AC-5 |
 | REQ-4 | Phase 1, Phase 3 | AC-6, AC-7 |
 | REQ-5 | Phase 3 | AC-8 |

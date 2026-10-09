@@ -1016,3 +1016,32 @@ def test_update_file_write_failure_after_password_step_says_so(
     assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR", "--user", "hr")) == 1
     assert "password was already replaced" in caplog.text
     assert SECRET not in caplog.text
+
+
+BASIC_PROPS = "name=alpha\ntype=ORACLE_BASIC\nhost=h1\nport=1521\nserviceName=s1\nuserName=scott\n"
+
+
+@pytest.mark.unit
+def test_update_connect_string_on_imported_connection_converts_it(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    home = tmp_path / "basic"
+    write_connection(home, UPD_ID_A, BASIC_PROPS)
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    assert main(_upd_argv(home, "--connect-string", "//x:1/y")) == 0
+    run.assert_not_called()
+    conn = ConnectionStore(home).connections()[0]
+    assert (conn.type, conn.connect_string, conn.extra) == ("ORACLE_DATABASE", "//x:1/y", {})
+
+
+@pytest.mark.unit
+def test_update_connect_string_unsupported_type_writes_nothing(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    home = tmp_path / "tns"
+    write_connection(home, UPD_ID_A, "name=alpha\ntype=ORACLE_TNS\ntnsAlias=a\nuserName=scott\n")
+    before = _tree(home)
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    assert main(_upd_argv(home, "--connect-string", "//x:1/y")) == 1
+    assert _tree(home) == before
+    run.assert_not_called()

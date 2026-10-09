@@ -54,12 +54,12 @@ Requirements: REQ-1, REQ-2, REQ-3, REQ-4, REQ-5
 
 Requirements: REQ-2, REQ-3, REQ-6, REQ-7
 
-- [ ] Integration tests in `tests/integration/test_update_compat.py`
-- [ ] Update `README.md`
-- [ ] Update `.claude/skills/sqlcl-conn-mng/SKILL.md`
-- [ ] Bump the version to `0.4.0`, run `uv lock`, reinstall the global tool, confirm `--version`
-- [ ] Remove Phase 1 probe leftovers
-- [ ] `make check`, `make unit`, `make integration` and `markdownlint-cli2` pass
+- [x] Integration tests in `tests/integration/test_update_compat.py`
+- [x] Update `README.md`
+- [x] Update `.claude/skills/sqlcl-conn-mng/SKILL.md`
+- [x] Bump the version to `0.4.0`, run `uv lock`, reinstall the global tool, confirm `--version`
+- [x] Remove Phase 1 probe leftovers
+- [x] `make check`, `make unit`, `make integration` and `markdownlint-cli2` pass
 
 ## Review Feedback
 
