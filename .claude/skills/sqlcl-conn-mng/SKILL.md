@@ -72,9 +72,11 @@ These parse the store files directly. Prefer `--format json` when the result is 
 | --- | --- |
 | List all connections | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng list --home .sqlcl --format json` |
 | List a folder and its subfolders | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng list --home .sqlcl --folder /dev --format json` |
+| List connections whose name matches a glob | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng list --home .sqlcl --filter 'dev_*' --format json` |
 | Show one connection | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng show --home .sqlcl --name NAME --format json` |
+| Show several (JSON list) | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng show --home .sqlcl --filter 'dev_*' --format json` (or `--all`) |
 | Folder tree | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng folders --home .sqlcl --format json` |
-| Export metadata to a file | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng export --home .sqlcl --output connections.json` |
+| Export metadata to a file | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng export --home .sqlcl --output connections.json [--filter 'dev_*']` |
 
 Connection names are case-sensitive. `wallet_present` in `show` output only says the wallet file exists; it always exists, so it says nothing about a saved password.
 
@@ -86,11 +88,15 @@ Each starts SQLcl, which takes about 10 seconds. SQLcl always exits 0, so trust 
 | --- | --- |
 | Is a password saved? | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng show --home .sqlcl --name NAME --check-password --format json` |
 | Test a connection | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng test --home .sqlcl --name NAME` |
+| Test many connections | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng test --home .sqlcl --filter 'dev_*'` (or `--all`) |
 | Rename | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng rename --home .sqlcl --name OLD --new-name NEW` |
 | Move into a folder | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng move --home .sqlcl --name NAME --folder /dev/local` |
+| Move many into a folder | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng move --home .sqlcl --filter 'tmp_*' --folder /dev/local` (or `--all`) |
 | Clone | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng clone --home .sqlcl --name NAME --new-name COPY [--user U] [--no-password]` |
 | Create a folder | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng add-folder --home .sqlcl --folder /dev/local` |
 | Delete an empty folder | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng delete-folder --home .sqlcl --folder /dev/local` |
+
+`test`, `show`, `delete` and `move` take exactly one of `--name NAME`, `--filter PATTERN` (case-sensitive glob on the whole name; quote it) or `--all`; none or more than one is exit 2. A batch (`--filter` or `--all`) continues after a failure, prints `[OK] NAME` or `[FAIL] NAME: reason` per connection and `Summary: N ok, M failed`, and exits 1 on any failure or when nothing matches. A batch run starts SQLcl once per connection, so allow about 10 seconds each.
 
 `test` needs a reachable database. If it fails, report the error text; do not retry with other credentials.
 
@@ -120,17 +126,18 @@ Confirm with the user before running these, naming exactly what will be removed.
 | Task | Command |
 | --- | --- |
 | Delete a connection | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng delete --home .sqlcl --name NAME --yes` |
+| Delete every match | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng delete --home .sqlcl --filter 'tmp_*' --yes` (or `--all`) |
 | Delete a folder and every connection in it | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng delete-folder --home .sqlcl --folder /dev/local --force --yes` |
 | Replace an existing connection | `add ... --replace` |
 
-The tool refuses `delete` and `delete-folder --force` without `--yes`. Deleted connections and their saved passwords cannot be recovered.
+Before a batch `delete`, run `list --filter PATTERN` (same pattern) and show the user the names that will go. The tool prints the matched names before the first deletion and refuses `delete` and `delete-folder --force` without `--yes`. Deleted connections and their saved passwords cannot be recovered.
 
 ## Exit codes
 
 | Code | Meaning |
 | --- | --- |
 | 0 | Success |
-| 1 | Operational failure: SQLcl error, unknown connection, refused destructive command. The reason is on stderr. |
+| 1 | Operational failure: SQLcl error, unknown connection, refused destructive command, a batch with a failed connection, or a batch that matched nothing. The reason is on stderr or in the `[FAIL]` line. |
 | 2 | Invalid command-line usage |
 
 If SQLcl is not found, the error says so: pass `--sqlcl` or set `SQLCL_BIN`.

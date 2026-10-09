@@ -95,6 +95,6 @@ The feature can be accepted when all items are true:
 - [x] AC-8 - batch `show` JSON list and table blocks - verified by: Phase 2 unit tests
 - [x] AC-9 - batch `test` and `move` act on each selected connection - verified by: Phase 2 unit and integration tests
 - [x] AC-10 - `list --filter` and `export --filter` narrow output - verified by: Phase 3 unit tests
-- [ ] AC-11 - README and SKILL.md document the parameters - verified by: Phase 4 review and markdown lint
-- [ ] AC-12 - version `0.3.0` in `pyproject.toml`, `uv.lock` and installed tool - verified by: Phase 4 commands
+- [x] AC-11 - README and SKILL.md document the parameters - verified by: Phase 4 review and markdown lint
+- [x] AC-12 - version `0.3.0` in `pyproject.toml`, `uv.lock` and installed tool - verified by: Phase 4 commands
 - [ ] AC-13 - `make check`, `make unit`, `make integration` pass - verified by: Linter and Regression Check sections

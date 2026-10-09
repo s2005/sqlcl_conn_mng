@@ -53,11 +53,11 @@ Requirements: REQ-2, REQ-6
 
 Requirements: REQ-7, REQ-8
 
-- [ ] Update `README.md` (table, batch section, examples, exit codes)
-- [ ] Update `.claude/skills/sqlcl-conn-mng/SKILL.md`
-- [ ] Set `version = "0.3.0"` in `pyproject.toml` and run `uv lock`
-- [ ] Reinstall the global tool and confirm `--version` prints `0.3.0`
-- [ ] `markdownlint-cli2` clean on changed Markdown files
+- [x] Update `README.md` (table, batch section, examples, exit codes)
+- [x] Update `.claude/skills/sqlcl-conn-mng/SKILL.md`
+- [x] Set `version = "0.3.0"` in `pyproject.toml` and run `uv lock`
+- [x] Reinstall the global tool and confirm `--version` prints `0.3.0`
+- [x] `markdownlint-cli2` clean on changed Markdown files
 
 ## Review Feedback
 
