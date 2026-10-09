@@ -63,4 +63,6 @@ Requirements: REQ-2, REQ-3, REQ-6, REQ-7
 
 ## Review Feedback
 
-(Section appears when PR review feedback arrives. Each comment gets a checkbox.)
+## Review Feedback (PR #4)
+
+- [x] P1: Password update on an imported connection had an empty connect string (fixed - target derived from host, port and serviceName)

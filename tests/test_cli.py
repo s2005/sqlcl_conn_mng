@@ -1045,3 +1045,43 @@ def test_update_connect_string_unsupported_type_writes_nothing(
     assert main(_upd_argv(home, "--connect-string", "//x:1/y")) == 1
     assert _tree(home) == before
     run.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("props", "target"),
+    [
+        (BASIC_PROPS, "scott@//h1:1521/s1"),
+        (
+            "name=alpha\ntype=ORACLE_BASIC\nhost=h1\nserviceName=s1\nuserName=scott\n",
+            "scott@//h1/s1",
+        ),
+    ],
+)
+def test_p1_password_update_derives_target_of_imported_connection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+    props: str,
+    target: str,
+) -> None:
+    """P1 (PR #4): the connect target of an ORACLE_BASIC connection comes from host/port/service."""
+    monkeypatch.setenv("FAKE_PWD_VAR", SECRET)
+    home = tmp_path / "basic_pw"
+    write_connection(home, UPD_ID_A, props)
+    run = _ok_run(mocker)
+    assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR")) == 0
+    assert target in run.call_args.kwargs["input"]  # type: ignore[attr-defined]
+
+
+@pytest.mark.unit
+def test_p1_password_update_imported_without_target_fails_before_connect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+) -> None:
+    """P1 (PR #4): an imported connection with no host or service cannot be addressed."""
+    monkeypatch.setenv("FAKE_PWD_VAR", SECRET)
+    home = tmp_path / "basic_nohost"
+    write_connection(home, UPD_ID_A, "name=alpha\ntype=ORACLE_BASIC\nuserName=scott\n")
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR")) == 1
+    run.assert_not_called()

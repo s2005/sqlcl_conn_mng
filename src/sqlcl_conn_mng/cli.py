@@ -548,6 +548,25 @@ def _update_changes(
     return changes
 
 
+def _current_connect_string(conn: SavedConnection) -> str:
+    """Return the connect string SQLcl needs to reconnect a saved connection.
+
+    An imported ORACLE_BASIC connection has no connectionString; its target is in host, port
+    and serviceName, so the easy connect form is built from them.
+    """
+    if conn.connect_string:
+        return conn.connect_string
+    host = conn.extra.get("host", "")
+    service = conn.extra.get("serviceName", "")
+    if not host or not service:
+        raise ValueError(
+            f"Connection {conn.name!r} has no connect string and no host and serviceName; "
+            "give --connect-string"
+        )
+    port = conn.extra.get("port", "")
+    return f"//{host}:{port}/{service}" if port else f"//{host}/{service}"
+
+
 def _cmd_update(args: argparse.Namespace) -> int:
     wants_password = _check_update_options(args)
     store = _store(args)
@@ -555,12 +574,13 @@ def _cmd_update(args: argparse.Namespace) -> int:
     _reject_duplicate_names([c for c in store.connections() if c.name == conn.name])
     changes = _update_changes(args, store, conn)
     if wants_password:
+        connect_string = changes.get("connectionString") or _current_connect_string(conn)
         password = _read_password(args)
         sq.save_connection(
             _runner(args),
             conn.name,
             changes.get("userName", conn.user_name),
-            changes.get("connectionString", conn.connect_string),
+            connect_string,
             password,
             save_password=not args.no_save_password,
             replace=True,
