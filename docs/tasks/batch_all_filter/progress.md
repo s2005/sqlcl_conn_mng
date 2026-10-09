@@ -39,7 +39,7 @@ Requirements: REQ-4, REQ-5, REQ-6
 - [x] Rewrite `_cmd_test`, `_cmd_move`, `_cmd_delete`, `_cmd_show` over the batch path
 - [x] Unit tests: `--name` unchanged, continue-on-failure, empty match, delete guard, show batch, move batch
 - [x] Create `tests/integration/test_batch_compat.py`
-- [ ] `make unit`, `make check`, `make integration` pass
+- [x] `make unit`, `make check`, `make integration` pass
 
 ## Phase 3: list And export Filter
 

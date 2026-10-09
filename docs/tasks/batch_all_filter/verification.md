@@ -86,7 +86,7 @@ Expected: all pass.
 The feature can be accepted when all items are true:
 
 - [x] AC-1 - zero or multiple selectors exit 2 on the four commands - verified by: Phase 1 unit tests
-- [ ] AC-2 - `--name` output and exit codes unchanged - verified by: Phase 1 and 2 unit tests, regression check
+- [x] AC-2 - `--name` output and exit codes unchanged - verified by: Phase 1 and 2 unit tests, regression check
 - [x] AC-3 - `--filter` is a case-sensitive sorted glob on names - verified by: Phase 1 unit tests
 - [x] AC-4 - `--all` selects every connection - verified by: Phase 1 unit tests
 - [x] AC-5 - batch continues after failure, prints lines and summary, exit 1 - verified by: Phase 2 unit tests
@@ -97,4 +97,4 @@ The feature can be accepted when all items are true:
 - [x] AC-10 - `list --filter` and `export --filter` narrow output - verified by: Phase 3 unit tests
 - [x] AC-11 - README and SKILL.md document the parameters - verified by: Phase 4 review and markdown lint
 - [x] AC-12 - version `0.3.0` in `pyproject.toml`, `uv.lock` and installed tool - verified by: Phase 4 commands
-- [ ] AC-13 - `make check`, `make unit`, `make integration` pass - verified by: Linter and Regression Check sections
+- [x] AC-13 - `make check`, `make unit`, `make integration` pass - verified by: Linter and Regression Check sections
