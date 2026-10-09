@@ -176,6 +176,32 @@ def build_parser() -> CliParser:
     )
     p.set_defaults(func=_cmd_add)
 
+    p = sub.add_parser(
+        "update",
+        parents=[global_options],
+        help="Change the name, user, connect string and/or password of one connection.",
+    )
+    _add_name(p, "Name of the connection to update.")
+    p.add_argument("--new-name", help="New connection name.")
+    p.add_argument("--user", help="New database user.")
+    p.add_argument("--connect-string", help="New connect string, e.g. //host:1521/svc.")
+    source = p.add_mutually_exclusive_group()
+    source.add_argument(
+        "--password-env",
+        help="Change the password to the value of this environment variable.",
+    )
+    source.add_argument(
+        "--prompt-password",
+        action="store_true",
+        help="Change the password to a value typed at a hidden prompt.",
+    )
+    p.add_argument(
+        "--no-save-password",
+        action="store_true",
+        help="With a new password: do not store it (default: store it).",
+    )
+    p.set_defaults(func=_cmd_update)
+
     p = sub.add_parser("delete", parents=[global_options], help="Delete saved connections.")
     _add_selector(p)
     p.add_argument("--yes", action="store_true", help="Confirm the deletion.")
@@ -483,6 +509,72 @@ def _cmd_add(args: argparse.Namespace) -> int:
     print(f"Connection {args.name} saved")
     if folder:
         print(sq.move_connection(runner, args.name, folder))
+    return 0
+
+
+def _check_update_options(args: argparse.Namespace) -> bool:
+    """Validate the update option set; return whether a new password was requested."""
+    wants_password = bool(args.password_env or args.prompt_password)
+    changes = (args.new_name, args.user, args.connect_string)
+    if not wants_password and all(value is None for value in changes):
+        raise ValueError(
+            "Nothing to update: give --new-name, --user, --connect-string, "
+            "--password-env or --prompt-password"
+        )
+    if args.no_save_password and not wants_password:
+        raise ValueError("--no-save-password needs --password-env or --prompt-password")
+    return wants_password
+
+
+def _update_changes(
+    args: argparse.Namespace, store: ConnectionStore, conn: SavedConnection
+) -> dict[str, str]:
+    """Validate the new values and return the dbtools.properties keys to write."""
+    changes: dict[str, str] = {}
+    if args.new_name is not None:
+        new_name = sq.validate_value(args.new_name, "new name")
+        clash = [
+            c.name
+            for c in store.connections()
+            if c.id != conn.id and c.name.casefold() == new_name.casefold()
+        ]
+        if clash:
+            raise ValueError(f"Connection name {new_name!r} is already used by {clash[0]!r}")
+        changes["name"] = new_name
+    if args.user is not None:
+        changes["userName"] = sq.validate_value(args.user, "user")
+    if args.connect_string is not None:
+        changes["connectionString"] = sq.validate_value(args.connect_string, "connect string")
+    return changes
+
+
+def _cmd_update(args: argparse.Namespace) -> int:
+    wants_password = _check_update_options(args)
+    store = _store(args)
+    conn = _select_connections(args, store)[0]
+    _reject_duplicate_names([c for c in store.connections() if c.name == conn.name])
+    changes = _update_changes(args, store, conn)
+    if wants_password:
+        password = _read_password(args)
+        sq.save_connection(
+            _runner(args),
+            conn.name,
+            changes.get("userName", conn.user_name),
+            changes.get("connectionString", conn.connect_string),
+            password,
+            save_password=not args.no_save_password,
+            replace=True,
+        )
+    if changes:
+        try:
+            store.update_properties(conn.id, changes)
+        except (StoreError, OSError) as exc:
+            if not wants_password:
+                raise
+            raise StoreError(
+                f"The password was already replaced, but the connection file was not updated: {exc}"
+            ) from exc
+    print(f"Connection {conn.name} updated")
     return 0
 
 

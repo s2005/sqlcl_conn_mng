@@ -44,11 +44,11 @@ Requirements: REQ-2
 
 Requirements: REQ-1, REQ-2, REQ-3, REQ-4, REQ-5
 
-- [ ] Add the `update` subparser and option rules
-- [ ] Add `_cmd_update` with validation, password step and file write
-- [ ] Generalize password reading without changing `add`
-- [ ] Unit tests for options, ordering, failures, collisions, secret-free output
-- [ ] `make unit` and `make check` pass
+- [x] Add the `update` subparser and option rules
+- [x] Add `_cmd_update` with validation, password step and file write
+- [x] Generalize password reading without changing `add`
+- [x] Unit tests for options, ordering, failures, collisions, secret-free output
+- [x] `make unit` and `make check` pass
 
 ## Phase 4: Integration, Docs And Version
 
