@@ -67,3 +67,4 @@ Requirements: REQ-2, REQ-3, REQ-6, REQ-7
 - [x] P2: Commented properties file was refused only after the password step (fixed - checked before it)
 - [x] P2: Unsupported type was checked after the password step (fixed - checked in validation, before any write)
 - [x] P1: Password update on an imported connection had an empty connect string (fixed - target derived from host, port and serviceName)
+- [-] P2: Names with `/`, `#`, `\`, `'`, `?` (rejected - SQLcl 25.4.1 creates and resolves them, see analysis 5)
