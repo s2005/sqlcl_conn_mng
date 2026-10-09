@@ -1,16 +1,19 @@
-"""Read-only access to the SQLcl saved-connection store."""
+"""Access to the SQLcl saved-connection store: read everything, rewrite only dbtools.properties."""
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
+import shutil
+import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 from sqlcl_conn_mng.models import ROOT_FOLDER, Folder, SavedConnection
-from sqlcl_conn_mng.properties import parse_properties
+from sqlcl_conn_mng.properties import format_properties, parse_properties
 
 HOME_ENV_VAR = "SQLCL_CONN_HOME"
 PROPERTIES_FILE = "dbtools.properties"
@@ -18,7 +21,18 @@ WALLET_FILE = "credentials.sso"
 CONNECTIONS_DIR = "connections"
 FOLDERS_FILE = Path("connection_folders") / "folders.json"
 KNOWN_KEYS = {"name", "type", "connectionString", "userName"}
+WRITABLE_KEYS = frozenset({"name", "connectionString", "userName"})
+TYPE_DATABASE = "ORACLE_DATABASE"
+TYPE_BASIC = "ORACLE_BASIC"
+# Types whose connect string SQLcl reads from connectionString (TYPE_DATABASE), or can be
+# converted to that form the way SQLcl does itself on connect -save -replace (TYPE_BASIC).
+CONNECT_STRING_TYPES = frozenset({TYPE_DATABASE, TYPE_BASIC})
+# The keys that give an ORACLE_BASIC connection its target; SQLcl reads them instead of
+# connectionString and drops them when it rewrites the connection as ORACLE_DATABASE.
+BASIC_TARGET_KEYS = frozenset({"host", "port", "serviceName"})
 _ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{22}")
+_COMMENT_MARKERS = "#!"
+_LINE_BREAK = re.compile(r"\r\n|\r|\n")
 
 
 class StoreError(Exception):
@@ -62,8 +76,48 @@ def walk_folders(folders: list[Folder]) -> list[Folder]:
     return flat
 
 
+def _has_comment_or_continuation(text: str) -> bool:
+    """Report a comment line or a continuation line, which a rewrite would not preserve."""
+    for raw in _LINE_BREAK.split(text):
+        line = raw.lstrip(" \t\f")
+        if line.startswith(tuple(_COMMENT_MARKERS)):
+            return True
+        if (len(line) - len(line.rstrip("\\"))) % 2 == 1:
+            return True
+    return False
+
+
+def _with_connect_string_form(props: dict[str, str]) -> dict[str, str]:
+    """Return props in the form where connectionString is what SQLcl reads.
+
+    An ORACLE_BASIC connection (imported from SQL Developer) is read from host, port and
+    serviceName, so a new connectionString would be ignored. SQLcl itself rewrites such a
+    connection as ORACLE_DATABASE without those keys when it saves it again; this does the same,
+    in the key order SQLcl writes. ORACLE_DATABASE props are returned unchanged.
+    """
+    kind = props.get("type", "")
+    if kind == TYPE_DATABASE:
+        return props
+    if kind != TYPE_BASIC:
+        raise StoreError(
+            f"Cannot change the connect string of a connection of type {kind!r}: "
+            f"only {TYPE_DATABASE} and {TYPE_BASIC} are supported"
+        )
+    converted = {"name": props.get("name", ""), "type": TYPE_DATABASE}
+    converted["connectionString"] = props.get("connectionString", "")
+    if "userName" in props:
+        converted["userName"] = props["userName"]
+    skipped = BASIC_TARGET_KEYS | set(converted)
+    converted.update({k: v for k, v in props.items() if k not in skipped})
+    return converted
+
+
 class ConnectionStore:
-    """Read-only view of a SQLcl store root (the directory given to -home)."""
+    """View of a SQLcl store root (the directory given to -home).
+
+    Everything is read-only except update_properties, which rewrites one dbtools.properties.
+    The wallet and folders.json are never written.
+    """
 
     def __init__(self, home: Path) -> None:
         self.home = home
@@ -123,6 +177,51 @@ class ConnectionStore:
             if conn.name == name:
                 return conn
         return None
+
+    def check_rewritable(self, conn_id: str) -> str:
+        """Return the text of one dbtools.properties if update_properties could rewrite it.
+
+        Raises StoreError for a missing file or a file with a comment or continuation line, so a
+        caller can refuse before it changes anything else.
+        """
+        target = self.home / CONNECTIONS_DIR / conn_id / PROPERTIES_FILE
+        if not target.is_file():
+            raise StoreError(f"Connection properties file not found for id {conn_id}")
+        text = _read_text(target)
+        if _has_comment_or_continuation(text):
+            raise StoreError(
+                f"Refusing to rewrite {PROPERTIES_FILE} for id {conn_id}: "
+                "it has a comment or a continuation line"
+            )
+        return text
+
+    def update_properties(self, conn_id: str, changes: Mapping[str, str]) -> None:
+        """Set name, userName and/or connectionString in one dbtools.properties, atomically.
+
+        Other keys, their order and the connection id stay as they are. A file holding a comment
+        or a continuation line is refused, because the rewrite would lose that text. A new
+        connectionString on an ORACLE_BASIC connection converts it to ORACLE_DATABASE as SQLcl
+        does (host, port and serviceName are dropped); any other type is refused.
+        """
+        unknown = set(changes) - WRITABLE_KEYS
+        if unknown:
+            raise StoreError(f"Cannot write properties: {', '.join(sorted(unknown))}")
+        text = self.check_rewritable(conn_id)
+        target = self.home / CONNECTIONS_DIR / conn_id / PROPERTIES_FILE
+        props = parse_properties(text)
+        if "connectionString" in changes:
+            props = _with_connect_string_form(props)
+        props.update(changes)
+        fd, tmp_name = tempfile.mkstemp(dir=target.parent, prefix=".dbtools.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(format_properties(props).encode("utf-8"))
+            shutil.copymode(target, tmp_name)
+            os.replace(tmp_name, target)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_name)
+            raise
 
     def has_wallet(self, conn_id: str) -> bool:
         """Report whether credentials.sso exists; the file is never opened."""

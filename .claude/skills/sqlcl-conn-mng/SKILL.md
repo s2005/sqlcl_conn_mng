@@ -1,6 +1,6 @@
 ---
 name: sqlcl-conn-mng
-description: Manage Oracle SQLcl saved connections in this project's .sqlcl store with the sqlcl-conn-mng CLI - list, show, check whether a password is saved, add, delete, rename, move, clone, test, create and delete folders, and export metadata. Use when asked to inspect, add, change, test or organise SQLcl saved connections or connection folders, to find a connection's user or connect string, or to check whether a saved connection works.
+description: Manage Oracle SQLcl saved connections in this project's .sqlcl store with the sqlcl-conn-mng CLI - list, show, check whether a password is saved, add, update, delete, rename, move, clone, test, create and delete folders, and export metadata. Use when asked to inspect, add, change, test or organise SQLcl saved connections or connection folders, to find a connection's user or connect string, or to check whether a saved connection works.
 ---
 
 # sqlcl-conn-mng
@@ -89,6 +89,7 @@ Each starts SQLcl, which takes about 10 seconds. SQLcl always exits 0, so trust 
 | Is a password saved? | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng show --home .sqlcl --name NAME --check-password --format json` |
 | Test a connection | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng test --home .sqlcl --name NAME` |
 | Test many connections | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng test --home .sqlcl --filter 'dev_*'` (or `--all`) |
+| Update user, connect string, name or password | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng update --home .sqlcl --name NAME [--new-name N] [--user U] [--connect-string C] [--password-env VAR or --prompt-password] [--no-save-password]` |
 | Rename | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng rename --home .sqlcl --name OLD --new-name NEW` |
 | Move into a folder | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng move --home .sqlcl --name NAME --folder /dev/local` |
 | Move many into a folder | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng move --home .sqlcl --filter 'tmp_*' --folder /dev/local` (or `--all`) |
@@ -118,6 +119,10 @@ Each starts SQLcl, which takes about 10 seconds. SQLcl always exits 0, so trust 
 If no variable holds the password, do not run `add` without `--password-env`: it falls back to a hidden interactive prompt that hangs a non-interactive shell. Give the user the full command without `--password-env` to run in their own terminal, then verify with `show`.
 
 Other `add` options: `--replace` overwrites a connection of the same name, `--no-save-password` keeps the password out of the wallet. Names, folders, users and connect strings must not contain a newline, carriage return or double quote.
+
+## Updating a connection
+
+`update` changes one connection (`--name` only; no `--filter` or `--all`) and needs at least one change option. Without a password source, `--new-name`, `--user` and `--connect-string` are written straight into the connection's `dbtools.properties`: no SQLcl, no database check, and a saved password is left as it is, so it can stop matching a changed user or URL. With a password source (an environment variable named by `--password-env`, preferred, or `--prompt-password`), SQLcl reconnects and replaces the password, and the connection is changed only if the connect works; `--no-save-password` keeps the new password out of the wallet. `--connect-string` on a connection imported from SQL Developer (`ORACLE_BASIC`) converts it to the `ORACLE_DATABASE` form SQLcl itself writes, because SQLcl ignores `connectionString` there; other connection types are refused. The password rules of [Adding a connection](#adding-a-connection) apply: never ask for it in the chat, and do not use `--prompt-password` in a non-interactive shell.
 
 ## Destructive commands
 

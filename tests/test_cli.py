@@ -18,6 +18,7 @@ from sqlcl_conn_mng.cli import (
     render_table,
 )
 from sqlcl_conn_mng.sqlcl import SqlclError
+from sqlcl_conn_mng.store import ConnectionStore
 from tests.conftest import ID_DEV, write_connection
 
 
@@ -750,3 +751,382 @@ def test_empty_batch_is_reported_before_sqlcl_is_resolved(
     assert main(argv) == 1
     assert "No connections match" in caplog.text
     assert "SQLcl not found" not in caplog.text
+
+
+# ---- update ----
+
+SECRET = "fake-pwd-9z"
+UPD_ID_A = "DDDDDDDDDDDDDDDDDDDDDD"
+UPD_ID_B = "EEEEEEEEEEEEEEEEEEEEEE"
+UPD_PROPS = "name={name}\ntype=ORACLE_DATABASE\nconnectionString=//h:1521/s\nuserName=scott\n"
+
+
+def _upd_home(tmp_path: Path, extra: tuple[str, ...] = ()) -> Path:
+    home = tmp_path / "upd"
+    write_connection(home, UPD_ID_A, UPD_PROPS.format(name="alpha"))
+    for index, name in enumerate(extra):
+        write_connection(home, "F" * 21 + str(index), UPD_PROPS.format(name=name))
+    return home
+
+
+def _upd_argv(home: Path, *rest: str) -> list[str]:
+    return ["update", "--home", str(home), "--sqlcl", "sql-bin", "--name", "alpha", *rest]
+
+
+def _tree(home: Path) -> dict[str, bytes]:
+    return {p.relative_to(home).as_posix(): p.read_bytes() for p in home.rglob("*") if p.is_file()}
+
+
+def _ok_run(mocker: MockerFixture) -> object:
+    return mocker.patch(
+        "sqlcl_conn_mng.sqlcl.subprocess.run",
+        return_value=mocker.Mock(stdout="Connection created and saved", stderr=""),
+    )
+
+
+@pytest.mark.unit
+def test_update_help_lists_options(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["update", "--help"])
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    for option in (
+        "--name",
+        "--new-name",
+        "--user",
+        "--connect-string",
+        "--password-env",
+        "--prompt-password",
+        "--no-save-password",
+    ):
+        assert option in out
+    assert "--filter" not in out
+    assert "--all" not in out
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "rest",
+    [[], ["--no-save-password"], ["--user", ""], ["--new-name", 'a"b']],
+)
+def test_update_bad_options_write_nothing(
+    tmp_path: Path, mocker: MockerFixture, rest: list[str]
+) -> None:
+    home = _upd_home(tmp_path)
+    before = _tree(home)
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    assert main(_upd_argv(home, *rest)) == 1
+    assert _tree(home) == before
+    run.assert_not_called()
+
+
+@pytest.mark.unit
+def test_update_both_password_sources_is_usage_error(tmp_path: Path) -> None:
+    home = _upd_home(tmp_path)
+    with pytest.raises(SystemExit) as exc:
+        main(_upd_argv(home, "--password-env", "X", "--prompt-password"))
+    assert exc.value.code == 2
+
+
+@pytest.mark.unit
+def test_update_unknown_name_writes_nothing(tmp_path: Path, mocker: MockerFixture) -> None:
+    home = _upd_home(tmp_path)
+    before = _tree(home)
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    argv = ["update", "--home", str(home), "--name", "nosuch", "--user", "x"]
+    assert main(argv) == 1
+    assert _tree(home) == before
+    run.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("rest", "expected"),
+    [
+        (
+            ["--user", "hr"],
+            "name=alpha\ntype=ORACLE_DATABASE\nconnectionString=//h\\:1521/s\nuserName=hr\n",
+        ),
+        (
+            ["--connect-string", "//x:1/y"],
+            "name=alpha\ntype=ORACLE_DATABASE\nconnectionString=//x\\:1/y\nuserName=scott\n",
+        ),
+        (
+            ["--new-name", "beta"],
+            "name=beta\ntype=ORACLE_DATABASE\nconnectionString=//h\\:1521/s\nuserName=scott\n",
+        ),
+    ],
+)
+def test_update_metadata_only_changes_one_value(
+    tmp_path: Path, mocker: MockerFixture, rest: list[str], expected: str
+) -> None:
+    home = _upd_home(tmp_path)
+    before = _tree(home)
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    assert main(_upd_argv(home, *rest)) == 0
+    run.assert_not_called()
+    after = _tree(home)
+    props = f"connections/{UPD_ID_A}/dbtools.properties"
+    assert after.pop(props).decode("utf-8") == expected
+    before.pop(props)
+    assert after == before
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("new_name", ["BETA", "beta"])
+def test_update_new_name_collision_any_case_refused(
+    tmp_path: Path, mocker: MockerFixture, new_name: str
+) -> None:
+    home = _upd_home(tmp_path, extra=("beta",))
+    before = _tree(home)
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    assert main(_upd_argv(home, "--new-name", new_name)) == 1
+    assert _tree(home) == before
+    run.assert_not_called()
+
+
+@pytest.mark.unit
+def test_update_case_only_rename_of_itself_allowed(tmp_path: Path) -> None:
+    home = _upd_home(tmp_path)
+    assert main(_upd_argv(home, "--new-name", "ALPHA")) == 0
+    assert _store_names(home) == ["ALPHA"]
+
+
+def _store_names(home: Path) -> list[str]:
+    return [c.name for c in ConnectionStore(home).connections()]
+
+
+@pytest.mark.unit
+def test_update_duplicate_record_names_refused(tmp_path: Path) -> None:
+    home = _upd_home(tmp_path, extra=("alpha",))
+    before = _tree(home)
+    assert main(_upd_argv(home, "--user", "hr")) == 1
+    assert _tree(home) == before
+
+
+@pytest.mark.unit
+def test_update_password_only_runs_replace_with_stored_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+) -> None:
+    monkeypatch.setenv("FAKE_PWD_VAR", SECRET)
+    home = _upd_home(tmp_path)
+    before = _tree(home)
+    run = _ok_run(mocker)
+    assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR")) == 0
+    assert run.call_count == 1  # type: ignore[attr-defined]
+    call = run.call_args  # type: ignore[attr-defined]
+    script = call.kwargs["input"]
+    assert "connect -save alpha -savepwd -replace" in script
+    assert "scott@//h:1521/s" in script
+    assert all(SECRET not in part for part in call.args[0])
+    assert _tree(home) == before
+    captured = capsys.readouterr()
+    assert SECRET not in captured.out + captured.err
+
+
+@pytest.mark.unit
+def test_update_no_save_password_drops_savepwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+) -> None:
+    monkeypatch.setenv("FAKE_PWD_VAR", SECRET)
+    home = _upd_home(tmp_path)
+    run = _ok_run(mocker)
+    assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR", "--no-save-password")) == 0
+    script = run.call_args.kwargs["input"]  # type: ignore[attr-defined]
+    assert "-savepwd" not in script
+    assert "-replace" in script
+
+
+@pytest.mark.unit
+def test_update_prompt_password_uses_hidden_prompt(tmp_path: Path, mocker: MockerFixture) -> None:
+    home = _upd_home(tmp_path)
+    prompt = mocker.patch("sqlcl_conn_mng.cli.getpass.getpass", return_value=SECRET)
+    run = _ok_run(mocker)
+    assert main(_upd_argv(home, "--prompt-password")) == 0
+    prompt.assert_called_once()
+    assert SECRET in run.call_args.kwargs["input"]  # type: ignore[attr-defined]
+
+
+@pytest.mark.unit
+def test_update_combined_connects_with_new_values_then_writes_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+) -> None:
+    monkeypatch.setenv("FAKE_PWD_VAR", SECRET)
+    home = _upd_home(tmp_path)
+    run = _ok_run(mocker)
+    rest = [
+        "--password-env",
+        "FAKE_PWD_VAR",
+        "--user",
+        "hr",
+        "--connect-string",
+        "//x:1/y",
+        "--new-name",
+        "beta",
+    ]
+    assert main(_upd_argv(home, *rest)) == 0
+    script = run.call_args.kwargs["input"]  # type: ignore[attr-defined]
+    # the connect runs under the old name with the new user and connect string
+    assert "connect -save alpha" in script
+    assert "hr@//x:1/y" in script
+    conn = ConnectionStore(home).connections()[0]
+    assert (conn.id, conn.name, conn.user_name, conn.connect_string) == (
+        UPD_ID_A,
+        "beta",
+        "hr",
+        "//x:1/y",
+    )
+    captured = capsys.readouterr()
+    assert SECRET not in captured.out + captured.err
+
+
+@pytest.mark.unit
+def test_update_failed_connect_leaves_store_unchanged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+) -> None:
+    monkeypatch.setenv("FAKE_PWD_VAR", SECRET)
+    home = _upd_home(tmp_path)
+    before = _tree(home)
+    mocker.patch(
+        "sqlcl_conn_mng.sqlcl.subprocess.run",
+        return_value=mocker.Mock(stdout="Connection failed ORA-01017", stderr=""),
+    )
+    rest = ["--password-env", "FAKE_PWD_VAR", "--user", "hr", "--new-name", "beta"]
+    assert main(_upd_argv(home, *rest)) == 1
+    assert _tree(home) == before
+
+
+@pytest.mark.unit
+def test_update_file_write_failure_after_password_step_says_so(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    mocker: MockerFixture,
+) -> None:
+    monkeypatch.setenv("FAKE_PWD_VAR", SECRET)
+    home = _upd_home(tmp_path)
+    _ok_run(mocker)
+    mocker.patch.object(ConnectionStore, "update_properties", side_effect=OSError("locked"))
+    assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR", "--user", "hr")) == 1
+    assert "password was already replaced" in caplog.text
+    assert SECRET not in caplog.text
+
+
+BASIC_PROPS = "name=alpha\ntype=ORACLE_BASIC\nhost=h1\nport=1521\nserviceName=s1\nuserName=scott\n"
+
+
+@pytest.mark.unit
+def test_update_connect_string_on_imported_connection_converts_it(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    home = tmp_path / "basic"
+    write_connection(home, UPD_ID_A, BASIC_PROPS)
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    assert main(_upd_argv(home, "--connect-string", "//x:1/y")) == 0
+    run.assert_not_called()
+    conn = ConnectionStore(home).connections()[0]
+    assert (conn.type, conn.connect_string, conn.extra) == ("ORACLE_DATABASE", "//x:1/y", {})
+
+
+@pytest.mark.unit
+def test_update_connect_string_unsupported_type_writes_nothing(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    home = tmp_path / "tns"
+    write_connection(home, UPD_ID_A, "name=alpha\ntype=ORACLE_TNS\ntnsAlias=a\nuserName=scott\n")
+    before = _tree(home)
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    assert main(_upd_argv(home, "--connect-string", "//x:1/y")) == 1
+    assert _tree(home) == before
+    run.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("props", "target"),
+    [
+        (BASIC_PROPS, "scott@//h1:1521/s1"),
+        (
+            "name=alpha\ntype=ORACLE_BASIC\nhost=h1\nserviceName=s1\nuserName=scott\n",
+            "scott@//h1/s1",
+        ),
+    ],
+)
+def test_p1_password_update_derives_target_of_imported_connection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+    props: str,
+    target: str,
+) -> None:
+    """P1 (PR #4): the connect target of an ORACLE_BASIC connection comes from host/port/service."""
+    monkeypatch.setenv("FAKE_PWD_VAR", SECRET)
+    home = tmp_path / "basic_pw"
+    write_connection(home, UPD_ID_A, props)
+    run = _ok_run(mocker)
+    assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR")) == 0
+    assert target in run.call_args.kwargs["input"]  # type: ignore[attr-defined]
+
+
+@pytest.mark.unit
+def test_p1_password_update_imported_without_target_fails_before_connect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+) -> None:
+    """P1 (PR #4): an imported connection with no host or service cannot be addressed."""
+    monkeypatch.setenv("FAKE_PWD_VAR", SECRET)
+    home = tmp_path / "basic_nohost"
+    write_connection(home, UPD_ID_A, "name=alpha\ntype=ORACLE_BASIC\nuserName=scott\n")
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR")) == 1
+    run.assert_not_called()
+
+
+@pytest.mark.unit
+def test_p2_unsupported_type_with_password_is_refused_before_connect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+) -> None:
+    """P2 (PR #4): the type check must run before the password step replaces credentials."""
+    monkeypatch.setenv("FAKE_PWD_VAR", SECRET)
+    home = tmp_path / "tns_pw"
+    write_connection(home, UPD_ID_A, "name=alpha\ntype=ORACLE_TNS\ntnsAlias=a\nuserName=scott\n")
+    before = _tree(home)
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    argv = _upd_argv(home, "--password-env", "FAKE_PWD_VAR", "--connect-string", "//x:1/y")
+    assert main(argv) == 1
+    assert _tree(home) == before
+    run.assert_not_called()
+
+
+@pytest.mark.unit
+def test_p2b_commented_properties_file_refused_before_password_step(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+) -> None:
+    """P2 (PR #4, round 3): an unwritable file must be refused before the password changes."""
+    monkeypatch.setenv("FAKE_PWD_VAR", SECRET)
+    home = tmp_path / "commented"
+    write_connection(home, UPD_ID_A, "# note\n" + UPD_PROPS.format(name="alpha"))
+    before = _tree(home)
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    argv = _upd_argv(home, "--password-env", "FAKE_PWD_VAR", "--user", "hr")
+    assert main(argv) == 1
+    assert _tree(home) == before
+    run.assert_not_called()
+
+
+@pytest.mark.unit
+def test_p2b_password_only_update_does_not_need_a_rewritable_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+) -> None:
+    """A password-only update never rewrites the file, so a comment in it is harmless."""
+    monkeypatch.setenv("FAKE_PWD_VAR", SECRET)
+    home = tmp_path / "commented_pw"
+    write_connection(home, UPD_ID_A, "# note\n" + UPD_PROPS.format(name="alpha"))
+    run = _ok_run(mocker)
+    assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR")) == 0
+    assert run.call_count == 1  # type: ignore[attr-defined]

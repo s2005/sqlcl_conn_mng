@@ -1,10 +1,10 @@
-"""Tests for the Java properties parser."""
+"""Tests for the Java properties parser and writer."""
 
 from __future__ import annotations
 
 import pytest
 
-from sqlcl_conn_mng.properties import parse_properties
+from sqlcl_conn_mng.properties import format_properties, parse_properties
 
 
 @pytest.mark.unit
@@ -68,3 +68,36 @@ def test_comment_marker_inside_value_is_kept() -> None:
 @pytest.mark.unit
 def test_trailing_continuation_at_eof() -> None:
     assert parse_properties("a=abc\\") == {"a": "abc"}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "value",
+    [
+        "plain",
+        "back\\slash",
+        "a:b=c#d!e",
+        " leading space",
+        "inner  spaces",
+        "tab\tnl\ncr\rff\f",
+        "ctl\x01\x1f",
+        "caf\\u00e9 \\u00fcber",
+        "",
+    ],
+)
+def test_format_round_trip(value: str) -> None:
+    props = {"name": value, "k e:y": value, "last": "x"}
+    assert parse_properties(format_properties(props)) == props
+
+
+@pytest.mark.unit
+def test_format_layout_and_escapes() -> None:
+    text = format_properties({"connectionString": "//h:1521/s", "name": " a\\b"})
+    assert text == "connectionString=//h\\:1521/s\nname=\\ a\\\\b\n"
+    assert format_properties({}) == ""
+
+
+@pytest.mark.unit
+def test_format_keeps_key_order() -> None:
+    text = format_properties({"b": "1", "a": "2", "c": "3"})
+    assert text.splitlines() == ["b=1", "a=2", "c=3"]
