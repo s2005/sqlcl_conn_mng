@@ -285,9 +285,18 @@ def _select_names(args: argparse.Namespace, store: ConnectionStore) -> list[str]
             raise ValueError(f"No saved connection named {args.name!r}")
         return [args.name]
     names = sorted(c.name for c in store.connections())
-    if args.select_all:
-        return names
-    return [n for n in names if _matches(n, args.name_filter)]
+    if not args.select_all:
+        names = [n for n in names if _matches(n, args.name_filter)]
+    # SQLcl addresses a connection by name only, so a name shared by several connections
+    # (possible after import -duplicates REPLACE) cannot be acted on one at a time.
+    shared = sorted({n for n in names if names.count(n) > 1})
+    if shared:
+        raise ValueError(
+            "Ambiguous selection: more than one connection is named "
+            + ", ".join(repr(n) for n in shared)
+            + "; SQLcl selects connections by name, so rename or delete the duplicates first"
+        )
+    return names
 
 
 def _describe_selection(args: argparse.Namespace) -> str:

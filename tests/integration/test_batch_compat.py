@@ -57,3 +57,15 @@ def test_batch_empty_filter_exits_one(
 ) -> None:
     store = copy_store(import_store.home, tmp_path)
     assert run_cli(store, "move", "--filter", "nomatch*", "--folder", "/bf").code == 1
+
+
+def test_batch_over_duplicate_names_is_refused(
+    import_store: BuiltStore, run_cli: RunCli, tmp_path: Path
+) -> None:
+    """P1 review: import -duplicates REPLACE leaves two connections per name."""
+    store = copy_store(import_store.home, tmp_path)
+    before = folders_by_name(store, run_cli)
+    result = run_cli(store, "delete", "--filter", "imp?", "--yes")
+    assert result.code == 1
+    assert "Deleting" not in result.stdout
+    assert folders_by_name(store, run_cli) == before

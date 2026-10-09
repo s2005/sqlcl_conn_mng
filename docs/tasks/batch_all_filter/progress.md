@@ -62,3 +62,7 @@ Requirements: REQ-7, REQ-8
 ## Review Feedback
 
 (Section appears when PR review feedback arrives. Each comment gets a checkbox.)
+
+## Review Feedback (PR #3)
+
+- [x] P1: Preserve connection identity when selecting duplicate names (fixed - a batch that selects a shared name is refused with `Ambiguous selection`)

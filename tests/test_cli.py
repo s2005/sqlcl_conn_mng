@@ -18,7 +18,7 @@ from sqlcl_conn_mng.cli import (
     render_table,
 )
 from sqlcl_conn_mng.sqlcl import SqlclError
-from tests.conftest import ID_DEV
+from tests.conftest import ID_DEV, write_connection
 
 
 @pytest.mark.unit
@@ -672,3 +672,46 @@ def test_export_filter_no_match_exports_zero(
     assert main(argv) == 0
     assert json.loads(target.read_text(encoding="utf-8")) == {"connections": []}
     assert "Exported 0 connection(s)" in capsys.readouterr().out
+
+
+@pytest.fixture
+def dup_home(fake_home: Path) -> Path:
+    """Return fake_home plus a second connection that is also named dev_local."""
+    write_connection(
+        fake_home,
+        "DDDDDDDDDDDDDDDDDDDDDD",
+        "name=dev_local\ntype=ORACLE_DATABASE\nconnectionString=//other.example.test\\:1521/x\n"
+        "userName=other\n",
+    )
+    return fake_home
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "command",
+    [["test"], ["show"], ["delete", "--yes"], ["move", "--folder", "/x"]],
+    ids=lambda c: c[0],
+)
+@pytest.mark.parametrize("selector", [["--all"], ["--filter", "dev_*"]])
+def test_batch_with_duplicate_names_is_refused(
+    command: list[str],
+    selector: list[str],
+    dup_home: Path,
+    mocker: MockerFixture,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """P1 review: a name shared by two connections cannot be acted on one at a time."""
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    assert main([*command, *_base(dup_home), *selector]) == 1
+    assert "Ambiguous selection" in caplog.text
+    assert "'dev_local'" in caplog.text
+    run.assert_not_called()
+
+
+@pytest.mark.unit
+def test_batch_skipping_the_duplicate_name_still_runs(
+    dup_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.check_connection", return_value="ok")
+    assert main(["test", *_base(dup_home), "--filter", "root_*"]) == 0
+    assert "[OK] root_conn" in capsys.readouterr().out
