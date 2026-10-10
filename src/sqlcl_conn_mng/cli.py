@@ -174,6 +174,7 @@ def build_parser() -> CliParser:
         "--password-env",
         help="Environment variable holding the password (default: prompt).",
     )
+    _add_format(p)
     p.set_defaults(func=_cmd_add)
 
     p = sub.add_parser(
@@ -200,21 +201,25 @@ def build_parser() -> CliParser:
         action="store_true",
         help="With a new password: do not store it (default: store it).",
     )
+    _add_format(p)
     p.set_defaults(func=_cmd_update)
 
     p = sub.add_parser("delete", parents=[global_options], help="Delete saved connections.")
     _add_selector(p)
     p.add_argument("--yes", action="store_true", help="Confirm the deletion.")
+    _add_format(p)
     p.set_defaults(func=_cmd_delete)
 
     p = sub.add_parser("rename", parents=[global_options], help="Rename a saved connection.")
     _add_name(p, "Current connection name.")
     p.add_argument("--new-name", required=True, help="New connection name.")
+    _add_format(p)
     p.set_defaults(func=_cmd_rename)
 
     p = sub.add_parser("move", parents=[global_options], help="Move connections into a folder.")
     _add_selector(p)
     p.add_argument("--folder", required=True, help="Destination folder, e.g. /dev/local.")
+    _add_format(p)
     p.set_defaults(func=_cmd_move)
 
     p = sub.add_parser("clone", parents=[global_options], help="Clone a saved connection.")
@@ -226,16 +231,19 @@ def build_parser() -> CliParser:
         action="store_true",
         help="Do not copy the saved password (default: copy it).",
     )
+    _add_format(p)
     p.set_defaults(func=_cmd_clone)
 
     p = sub.add_parser(
         "test", parents=[global_options], help="Test saved connections through SQLcl."
     )
     _add_selector(p)
+    _add_format(p)
     p.set_defaults(func=_cmd_test)
 
     p = sub.add_parser("add-folder", parents=[global_options], help="Create a folder.")
     p.add_argument("--folder", required=True, help="Folder path, e.g. /dev/local.")
+    _add_format(p)
     p.set_defaults(func=_cmd_add_folder)
 
     p = sub.add_parser("delete-folder", parents=[global_options], help="Delete a folder.")
@@ -246,6 +254,7 @@ def build_parser() -> CliParser:
         help="Also delete the connections inside, permanently (default: off).",
     )
     p.add_argument("--yes", action="store_true", help="Confirm a forced deletion.")
+    _add_format(p)
     p.set_defaults(func=_cmd_delete_folder)
 
     p = sub.add_parser(
@@ -253,6 +262,7 @@ def build_parser() -> CliParser:
     )
     p.add_argument("--output", required=True, help="Path of the JSON file to write.")
     _add_filter(p)
+    _add_format(p)
     p.set_defaults(func=_cmd_export)
     parser.commands.update(sub.choices)
     return parser
@@ -359,24 +369,62 @@ def _run_batch(args: argparse.Namespace, names: list[str], action: Callable[[str
     reports one line per connection, continues after a failure and ends with a summary.
     """
     if args.name is not None:
-        print(action(names[0]))
+        _emit_ok(args, action(names[0]), name=names[0], folder=getattr(args, "folder", None))
         return 0
     _require_matches(args, names)
+    as_json = args.format == "json"
+    results: list[dict[str, str]] = []
     failed = 0
     for name in names:
         try:
-            action(name)
+            message = action(name)
         except (sq.SqlclError, StoreError, ValueError, OSError) as exc:
             failed += 1
-            print(f"[FAIL] {name}: {exc}")
+            results.append({"name": name, "status": "error", "message": str(exc)})
+            if not as_json:
+                print(f"[FAIL] {name}: {exc}")
         else:
-            print(f"[OK] {name}")
-    print(f"Summary: {len(names) - failed} ok, {failed} failed")
+            results.append({"name": name, "status": "ok", "message": message})
+            if not as_json:
+                print(f"[OK] {name}")
+    if as_json:
+        _dump(
+            {
+                "status": "error" if failed else "ok",
+                "command": args.command,
+                "results": results,
+                "ok": len(names) - failed,
+                "failed": failed,
+            }
+        )
+    else:
+        print(f"Summary: {len(names) - failed} ok, {failed} failed")
     return 1 if failed else 0
 
 
 def _dump(data: Any) -> None:
     print(json.dumps(data, indent=2, sort_keys=True))
+
+
+def _emit_ok(args: argparse.Namespace, message: str, **fields: Any) -> None:
+    """Print message in table mode, or one JSON object holding it and the given fields."""
+    if args.format != "json":
+        print(message)
+        return
+    _dump(
+        {
+            "status": "ok",
+            "command": args.command,
+            "message": message,
+            **{key: value for key, value in fields.items() if value is not None},
+        }
+    )
+
+
+def _emit_error(args: argparse.Namespace, message: str) -> None:
+    """Print the JSON error object when the command was given --format json."""
+    if getattr(args, "format", "table") == "json":
+        _dump({"status": "error", "command": args.command, "message": message})
 
 
 def _cmd_list(args: argparse.Namespace) -> int:
@@ -506,9 +554,21 @@ def _cmd_add(args: argparse.Namespace) -> int:
     )
     if store.get(args.name) is None:
         raise sq.SqlclError("SQLcl did not save the connection; check the user and connect string")
-    print(f"Connection {args.name} saved")
+    saved = f"Connection {args.name} saved"
+    if args.format != "json":
+        # Printed before the move, so a failing move still leaves the save confirmation on stdout.
+        print(saved)
+        if folder:
+            print(sq.move_connection(runner, args.name, folder))
+        return 0
+    message = saved
     if folder:
-        print(sq.move_connection(runner, args.name, folder))
+        try:
+            message = f"{saved}\n{sq.move_connection(runner, args.name, folder)}"
+        except (sq.SqlclError, StoreError, ValueError, OSError) as exc:
+            # The only stdout document is the error object, so it must say the save happened.
+            raise type(exc)(f"{saved}, but moving it to {folder} failed: {exc}") from exc
+    _emit_ok(args, message, name=args.name, folder=folder)
     return 0
 
 
@@ -603,7 +663,7 @@ def _cmd_update(args: argparse.Namespace) -> int:
             raise StoreError(
                 f"The password was already replaced, but the connection file was not updated: {exc}"
             ) from exc
-    print(f"Connection {conn.name} updated")
+    _emit_ok(args, f"Connection {conn.name} updated", name=conn.name, new_name=args.new_name)
     return 0
 
 
@@ -613,13 +673,15 @@ def _cmd_delete(args: argparse.Namespace) -> int:
     names = _select_names(args, _store(args))
     if args.name is None:
         _require_matches(args, names)
-        print(f"Deleting {len(names)} connection(s): {', '.join(names)}")
+        if args.format != "json":
+            print(f"Deleting {len(names)} connection(s): {', '.join(names)}")
     runner = _runner(args)
     return _run_batch(args, names, lambda name: sq.delete_connection(runner, name))
 
 
 def _cmd_rename(args: argparse.Namespace) -> int:
-    print(sq.rename_connection(_runner(args), args.name, args.new_name))
+    message = sq.rename_connection(_runner(args), args.name, args.new_name)
+    _emit_ok(args, message, name=args.name, new_name=args.new_name)
     return 0
 
 
@@ -633,7 +695,8 @@ def _cmd_move(args: argparse.Namespace) -> int:
 
 def _cmd_clone(args: argparse.Namespace) -> int:
     runner = _runner(args)
-    print(sq.clone_connection(runner, args.name, args.new_name, args.user, args.no_password))
+    message = sq.clone_connection(runner, args.name, args.new_name, args.user, args.no_password)
+    _emit_ok(args, message, name=args.name, new_name=args.new_name)
     return 0
 
 
@@ -646,14 +709,15 @@ def _cmd_test(args: argparse.Namespace) -> int:
 
 
 def _cmd_add_folder(args: argparse.Namespace) -> int:
-    print(sq.add_folder(_runner(args), args.folder))
+    _emit_ok(args, sq.add_folder(_runner(args), args.folder), folder=args.folder)
     return 0
 
 
 def _cmd_delete_folder(args: argparse.Namespace) -> int:
     if args.force and not args.yes:
         raise ValueError(_NEED_YES)
-    print(sq.delete_folder(_runner(args), args.folder, args.force))
+    message = sq.delete_folder(_runner(args), args.folder, args.force)
+    _emit_ok(args, message, folder=args.folder)
     return 0
 
 
@@ -668,7 +732,8 @@ def _cmd_export(args: argparse.Namespace) -> int:
         items.append(item)
     text = json.dumps({"connections": items}, indent=2, sort_keys=True)
     Path(args.output).write_text(text + "\n", encoding="utf-8")
-    print(f"Exported {len(items)} connection(s) to {args.output}")
+    message = f"Exported {len(items)} connection(s) to {args.output}"
+    _emit_ok(args, message, count=len(items), output=args.output)
     return 0
 
 
@@ -721,9 +786,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return run(args)
     except (sq.SqlclError, StoreError, ValueError, OSError) as exc:
         logger.error("%s", exc)
+        _emit_error(args, str(exc))
         return 1
     except KeyboardInterrupt:
         logger.error("Interrupted")
+        _emit_error(args, "Interrupted")
         return 1
 
 

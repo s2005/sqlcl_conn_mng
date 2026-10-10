@@ -69,3 +69,19 @@ def test_batch_over_duplicate_names_is_refused(
     assert result.code == 1
     assert "Deleting" not in result.stdout
     assert folders_by_name(store, run_cli) == before
+
+
+def test_batch_move_json_envelope(
+    import_store: BuiltStore, run_cli: RunCli, tmp_path: Path
+) -> None:
+    store = copy_store(import_store.home, tmp_path)
+    assert run_cli(store, "add-folder", "--folder", "/jf").code == 0
+    moved = run_cli(store, "move", "--filter", "imp?_1", "--folder", "/jf", "--format", "json")
+    assert moved.code == 0
+    doc: dict[str, Any] = moved.data
+    assert doc["status"] == "ok"
+    assert doc["command"] == "move"
+    assert doc["ok"] == 3
+    assert doc["failed"] == 0
+    assert [r["name"] for r in doc["results"]] == ["imp1_1", "imp2_1", "imp3_1"]
+    assert folders_by_name(store, run_cli)["imp1_1"] == "/jf"

@@ -10,6 +10,8 @@ from pytest_mock import MockerFixture
 
 from sqlcl_conn_mng import __version__
 from sqlcl_conn_mng.cli import (
+    _emit_error,
+    _emit_ok,
     _global_options,
     _select_names,
     _store,
@@ -18,7 +20,7 @@ from sqlcl_conn_mng.cli import (
     render_table,
 )
 from sqlcl_conn_mng.sqlcl import SqlclError
-from sqlcl_conn_mng.store import ConnectionStore
+from sqlcl_conn_mng.store import ConnectionStore, StoreError
 from tests.conftest import ID_DEV, write_connection
 
 
@@ -1130,3 +1132,396 @@ def test_p2b_password_only_update_does_not_need_a_rewritable_file(
     run = _ok_run(mocker)
     assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR")) == 0
     assert run.call_count == 1  # type: ignore[attr-defined]
+
+
+_FORMAT_COMMANDS = [
+    "add",
+    "update",
+    "delete",
+    "rename",
+    "move",
+    "clone",
+    "test",
+    "add-folder",
+    "delete-folder",
+    "export",
+]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("command", _FORMAT_COMMANDS)
+def test_format_option_on_status_commands(command: str) -> None:
+    parser = build_parser()
+    sub = parser.commands[command]
+    option = next(a for a in sub._actions if a.dest == "format")
+    assert option.default == "table"
+    assert list(option.choices or []) == ["table", "json"]
+    with pytest.raises(SystemExit) as exc:
+        sub.parse_args(["--format", "xml"])
+    assert exc.value.code == 2
+
+
+@pytest.mark.unit
+def test_emit_ok_table_prints_message(capsys: pytest.CaptureFixture[str]) -> None:
+    args = build_parser().parse_args(["add-folder", "--folder", "/x"])
+    _emit_ok(args, "Folder created", folder="/x")
+    assert capsys.readouterr().out == "Folder created\n"
+
+
+@pytest.mark.unit
+def test_emit_ok_json_drops_none_fields(capsys: pytest.CaptureFixture[str]) -> None:
+    args = build_parser().parse_args(["add-folder", "--folder", "/x", "--format", "json"])
+    _emit_ok(args, "Folder created", folder="/x", skipped=None)
+    assert json.loads(capsys.readouterr().out) == {
+        "status": "ok",
+        "command": "add-folder",
+        "message": "Folder created",
+        "folder": "/x",
+    }
+
+
+@pytest.mark.unit
+def test_emit_error_only_in_json_mode(capsys: pytest.CaptureFixture[str]) -> None:
+    table = build_parser().parse_args(["add-folder", "--folder", "/x"])
+    _emit_error(table, "boom")
+    assert capsys.readouterr().out == ""
+    as_json = build_parser().parse_args(["add-folder", "--folder", "/x", "--format", "json"])
+    _emit_error(as_json, "boom")
+    assert json.loads(capsys.readouterr().out) == {
+        "status": "error",
+        "command": "add-folder",
+        "message": "boom",
+    }
+
+
+def _json_out(capsys: pytest.CaptureFixture[str]) -> dict[str, object]:
+    data: dict[str, object] = json.loads(capsys.readouterr().out)
+    return data
+
+
+@pytest.mark.unit
+def test_add_json_and_table(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.save_connection")
+    mocker.patch("sqlcl_conn_mng.sqlcl.move_connection", return_value="moved it")
+    mocker.patch.dict("os.environ", {"FAKE_PWD_VAR": "pw"})
+    argv = ["add", *_base(fake_home), "--name", "dev_local", "--replace", "--user", "u"]
+    argv += ["--connect-string", "//h/s", "--password-env", "FAKE_PWD_VAR", "--folder", "/a"]
+    assert main(argv) == 0
+    assert capsys.readouterr().out == "Connection dev_local saved\nmoved it\n"
+    assert main([*argv, "--format", "json"]) == 0
+    assert _json_out(capsys) == {
+        "status": "ok",
+        "command": "add",
+        "message": "Connection dev_local saved\nmoved it",
+        "name": "dev_local",
+        "folder": "/a",
+    }
+
+
+@pytest.mark.unit
+def test_add_json_without_folder_omits_it(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.save_connection")
+    mocker.patch.dict("os.environ", {"FAKE_PWD_VAR": "pw"})
+    argv = ["add", *_base(fake_home), "--name", "dev_local", "--replace", "--user", "u"]
+    argv += ["--connect-string", "//h/s", "--password-env", "FAKE_PWD_VAR", "--format", "json"]
+    assert main(argv) == 0
+    assert "folder" not in _json_out(capsys)
+
+
+@pytest.mark.unit
+def test_update_json_and_table(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    home = _upd_home(tmp_path)
+    assert main(_upd_argv(home, "--user", "scott2")) == 0
+    assert capsys.readouterr().out == "Connection alpha updated\n"
+    assert main(_upd_argv(home, "--user", "scott3", "--format", "json")) == 0
+    data = _json_out(capsys)
+    assert data["message"] == "Connection alpha updated"
+    assert data["name"] == "alpha"
+    assert "new_name" not in data
+    assert main(_upd_argv(home, "--new-name", "beta", "--format", "json")) == 0
+    assert _json_out(capsys)["new_name"] == "beta"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("command", "target", "extra", "fields"),
+    [
+        (
+            "rename",
+            "rename_connection",
+            ["--new-name", "n2"],
+            {"name": "dev_local", "new_name": "n2"},
+        ),
+        (
+            "clone",
+            "clone_connection",
+            ["--new-name", "n2"],
+            {"name": "dev_local", "new_name": "n2"},
+        ),
+    ],
+)
+def test_rename_clone_json_and_table(
+    command: str,
+    target: str,
+    extra: list[str],
+    fields: dict[str, str],
+    fake_home: Path,
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+) -> None:
+    mocker.patch(f"sqlcl_conn_mng.sqlcl.{target}", return_value="did it")
+    argv = [command, *_base(fake_home), "--name", "dev_local", *extra]
+    assert main(argv) == 0
+    assert capsys.readouterr().out == "did it\n"
+    assert main([*argv, "--format", "json"]) == 0
+    assert _json_out(capsys) == {"status": "ok", "command": command, "message": "did it", **fields}
+
+
+@pytest.mark.unit
+def test_add_folder_and_delete_folder_json_and_table(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.add_folder", return_value="made")
+    mocker.patch("sqlcl_conn_mng.sqlcl.delete_folder", return_value="gone")
+    for command, text in (("add-folder", "made"), ("delete-folder", "gone")):
+        argv = [command, *_base(fake_home), "--folder", "/x"]
+        assert main(argv) == 0
+        assert capsys.readouterr().out == f"{text}\n"
+        assert main([*argv, "--format", "json"]) == 0
+        assert _json_out(capsys) == {
+            "status": "ok",
+            "command": command,
+            "message": text,
+            "folder": "/x",
+        }
+
+
+@pytest.mark.unit
+def test_export_json_and_table(
+    fake_home: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = str(tmp_path / "e.json")
+    argv = ["export", "--home", str(fake_home), "--output", out]
+    assert main(argv) == 0
+    assert capsys.readouterr().out == f"Exported 3 connection(s) to {out}\n"
+    assert main([*argv, "--format", "json"]) == 0
+    assert _json_out(capsys) == {
+        "status": "ok",
+        "command": "export",
+        "message": f"Exported 3 connection(s) to {out}",
+        "count": 3,
+        "output": out,
+    }
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("command", "target", "extra", "fields"),
+    [
+        ("delete", "delete_connection", ["--yes"], {}),
+        ("move", "move_connection", ["--folder", "/z"], {"folder": "/z"}),
+        ("test", "check_connection", [], {}),
+    ],
+)
+def test_name_selection_json_and_table(
+    command: str,
+    target: str,
+    extra: list[str],
+    fields: dict[str, str],
+    fake_home: Path,
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+) -> None:
+    mocker.patch(f"sqlcl_conn_mng.sqlcl.{target}", return_value="did it")
+    argv = [command, *_base(fake_home), "--name", "dev_local", *extra]
+    assert main(argv) == 0
+    assert capsys.readouterr().out == "did it\n"
+    assert main([*argv, "--format", "json"]) == 0
+    assert _json_out(capsys) == {
+        "status": "ok",
+        "command": command,
+        "message": "did it",
+        "name": "dev_local",
+        **fields,
+    }
+
+
+@pytest.mark.unit
+def test_batch_json_all_ok(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.move_connection", return_value="moved")
+    argv = ["move", *_base(fake_home), "--filter", "*_*", "--folder", "/z", "--format", "json"]
+    assert main(argv) == 0
+    assert _json_out(capsys) == {
+        "status": "ok",
+        "command": "move",
+        "results": [
+            {"name": "dev_local", "status": "ok", "message": "moved"},
+            {"name": "root_conn", "status": "ok", "message": "moved"},
+        ],
+        "ok": 2,
+        "failed": 0,
+    }
+
+
+@pytest.mark.unit
+def test_batch_json_with_failing_item(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    _fail_on("dev_local", mocker, "sqlcl_conn_mng.sqlcl.check_connection")
+    argv = ["test", *_base(fake_home), "--all", "--format", "json"]
+    assert main(argv) == 1
+    data = _json_out(capsys)
+    assert data["status"] == "error"
+    assert data["ok"] == 2
+    assert data["failed"] == 1
+    results = data["results"]
+    assert isinstance(results, list)
+    assert [r["name"] for r in results] == ["Prod One", "dev_local", "root_conn"]
+    assert results[1] == {"name": "dev_local", "status": "error", "message": "boom dev_local"}
+    assert results[2]["status"] == "ok"
+
+
+@pytest.mark.unit
+def test_batch_table_output_unchanged(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    _fail_on("dev_local", mocker, "sqlcl_conn_mng.sqlcl.check_connection")
+    assert main(["test", *_base(fake_home), "--filter", "*_*"]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "[FAIL] dev_local: boom dev_local",
+        "[OK] root_conn",
+        "Summary: 1 ok, 1 failed",
+    ]
+
+
+@pytest.mark.unit
+def test_delete_batch_json_is_one_document(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    _fail_on("root_conn", mocker, "sqlcl_conn_mng.sqlcl.delete_connection")
+    argv = ["delete", *_base(fake_home), "--filter", "*_*", "--yes", "--format", "json"]
+    assert main(argv) == 1
+    data = _json_out(capsys)
+    assert data["command"] == "delete"
+    assert data["ok"] == 1
+    assert data["failed"] == 1
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "exc",
+    [SqlclError("sqlcl broke"), StoreError("store broke"), ValueError("bad value"), OSError("io")],
+)
+def test_error_object_for_each_caught_exception(
+    exc: Exception,
+    fake_home: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+    mocker: MockerFixture,
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.add_folder", side_effect=exc)
+    argv = ["add-folder", *_base(fake_home), "--folder", "/x", "--format", "json"]
+    assert main(argv) == 1
+    assert _json_out(capsys) == {"status": "error", "command": "add-folder", "message": str(exc)}
+    assert str(exc) in caplog.text
+
+
+@pytest.mark.unit
+def test_error_object_for_keyboard_interrupt(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.add_folder", side_effect=KeyboardInterrupt)
+    argv = ["add-folder", *_base(fake_home), "--folder", "/x", "--format", "json"]
+    assert main(argv) == 1
+    assert _json_out(capsys)["message"] == "Interrupted"
+
+
+@pytest.mark.unit
+def test_table_failure_prints_nothing_on_stdout(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.add_folder", side_effect=SqlclError("x"))
+    assert main(["add-folder", *_base(fake_home), "--folder", "/x"]) == 1
+    assert capsys.readouterr().out == ""
+
+
+@pytest.mark.unit
+def test_empty_batch_match_is_error_object(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    argv = ["move", *_base(fake_home), "--filter", "nomatch*", "--folder", "/z", "--format", "json"]
+    assert main(argv) == 1
+    data = _json_out(capsys)
+    assert data["status"] == "error"
+    assert "No connections match" in str(data["message"])
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["show", "--name", "nosuch"],
+        ["folders"],
+        ["list"],
+    ],
+)
+def test_read_commands_failure_is_error_object(
+    argv: list[str],
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+) -> None:
+    home = tmp_path / "empty"
+    home.mkdir()
+    if argv[0] != "show":
+        mocker.patch("sqlcl_conn_mng.cli._store", side_effect=StoreError("no store"))
+    assert main([*argv, "--home", str(home), "--format", "json"]) == 1
+    data = _json_out(capsys)
+    assert data["status"] == "error"
+    assert data["command"] == argv[0]
+
+
+@pytest.mark.unit
+def test_usage_error_stays_plain_text(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["add-folder", "--format", "json"])
+    assert exc.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "required" in captured.err
+
+
+@pytest.mark.unit
+def test_p1_add_table_prints_saved_before_a_failing_move(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    """Review P1: a failing folder move must still leave the save line on stdout."""
+    mocker.patch("sqlcl_conn_mng.sqlcl.save_connection")
+    mocker.patch("sqlcl_conn_mng.sqlcl.move_connection", side_effect=SqlclError("bad folder"))
+    mocker.patch.dict("os.environ", {"FAKE_PWD_VAR": "pw"})
+    argv = ["add", *_base(fake_home), "--name", "dev_local", "--replace", "--user", "u"]
+    argv += ["--connect-string", "//h/s", "--password-env", "FAKE_PWD_VAR", "--folder", "/a"]
+    assert main(argv) == 1
+    assert capsys.readouterr().out == "Connection dev_local saved\n"
+
+
+@pytest.mark.unit
+def test_p2_add_json_failing_move_reports_the_persisted_save(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    """Review P2: the JSON error object must say the connection was already saved."""
+    mocker.patch("sqlcl_conn_mng.sqlcl.save_connection")
+    mocker.patch("sqlcl_conn_mng.sqlcl.move_connection", side_effect=SqlclError("bad folder"))
+    mocker.patch.dict("os.environ", {"FAKE_PWD_VAR": "pw"})
+    argv = ["add", *_base(fake_home), "--name", "dev_local", "--replace", "--user", "u"]
+    argv += ["--connect-string", "//h/s", "--password-env", "FAKE_PWD_VAR", "--folder", "/a"]
+    assert main([*argv, "--format", "json"]) == 1
+    data = _json_out(capsys)
+    assert data["status"] == "error"
+    assert data["message"] == ("Connection dev_local saved, but moving it to /a failed: bad folder")
