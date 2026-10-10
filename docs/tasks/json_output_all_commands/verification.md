@@ -93,7 +93,7 @@ The feature can be accepted when all items are true:
 - [ ] AC-2 - table output and existing tests unchanged - verified by: Regression Check
 - [x] AC-3 - single-result commands print the envelope with extra fields - verified by: Phase 2 tests
 - [x] AC-4 - batch `--filter` / `--all` print the `results` envelope, exit 1 on failure - verified by: Phase 3 tests
-- [ ] AC-5 - caught failures print the error object, keep the stderr log and exit code - verified by: Phase 4 tests
-- [ ] AC-6 - `json.loads` of stdout succeeds on every path - verified by: Phase 2, 3 and 4 tests
+- [x] AC-5 - caught failures print the error object, keep the stderr log and exit code - verified by: Phase 4 tests
+- [x] AC-6 - `json.loads` of stdout succeeds on every path - verified by: Phase 2, 3 and 4 tests
 - [ ] AC-7 - new unit and integration tests pass, lint clean - verified by: Linter and Regression Check
 - [ ] AC-8 - README updated, version 0.5.0 - verified by: `sqlcl-conn-mng --version` and README diff

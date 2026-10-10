@@ -780,9 +780,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return run(args)
     except (sq.SqlclError, StoreError, ValueError, OSError) as exc:
         logger.error("%s", exc)
+        _emit_error(args, str(exc))
         return 1
     except KeyboardInterrupt:
         logger.error("Interrupted")
+        _emit_error(args, "Interrupted")
         return 1
 
 

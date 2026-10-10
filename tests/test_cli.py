@@ -20,7 +20,7 @@ from sqlcl_conn_mng.cli import (
     render_table,
 )
 from sqlcl_conn_mng.sqlcl import SqlclError
-from sqlcl_conn_mng.store import ConnectionStore
+from sqlcl_conn_mng.store import ConnectionStore, StoreError
 from tests.conftest import ID_DEV, write_connection
 
 
@@ -1411,3 +1411,87 @@ def test_delete_batch_json_is_one_document(
     assert data["command"] == "delete"
     assert data["ok"] == 1
     assert data["failed"] == 1
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "exc",
+    [SqlclError("sqlcl broke"), StoreError("store broke"), ValueError("bad value"), OSError("io")],
+)
+def test_error_object_for_each_caught_exception(
+    exc: Exception,
+    fake_home: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+    mocker: MockerFixture,
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.add_folder", side_effect=exc)
+    argv = ["add-folder", *_base(fake_home), "--folder", "/x", "--format", "json"]
+    assert main(argv) == 1
+    assert _json_out(capsys) == {"status": "error", "command": "add-folder", "message": str(exc)}
+    assert str(exc) in caplog.text
+
+
+@pytest.mark.unit
+def test_error_object_for_keyboard_interrupt(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.add_folder", side_effect=KeyboardInterrupt)
+    argv = ["add-folder", *_base(fake_home), "--folder", "/x", "--format", "json"]
+    assert main(argv) == 1
+    assert _json_out(capsys)["message"] == "Interrupted"
+
+
+@pytest.mark.unit
+def test_table_failure_prints_nothing_on_stdout(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.add_folder", side_effect=SqlclError("x"))
+    assert main(["add-folder", *_base(fake_home), "--folder", "/x"]) == 1
+    assert capsys.readouterr().out == ""
+
+
+@pytest.mark.unit
+def test_empty_batch_match_is_error_object(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    argv = ["move", *_base(fake_home), "--filter", "nomatch*", "--folder", "/z", "--format", "json"]
+    assert main(argv) == 1
+    data = _json_out(capsys)
+    assert data["status"] == "error"
+    assert "No connections match" in str(data["message"])
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["show", "--name", "nosuch"],
+        ["folders"],
+        ["list"],
+    ],
+)
+def test_read_commands_failure_is_error_object(
+    argv: list[str],
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+) -> None:
+    home = tmp_path / "empty"
+    home.mkdir()
+    if argv[0] != "show":
+        mocker.patch("sqlcl_conn_mng.cli._store", side_effect=StoreError("no store"))
+    assert main([*argv, "--home", str(home), "--format", "json"]) == 1
+    data = _json_out(capsys)
+    assert data["status"] == "error"
+    assert data["command"] == argv[0]
+
+
+@pytest.mark.unit
+def test_usage_error_stays_plain_text(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["add-folder", "--format", "json"])
+    assert exc.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "required" in captured.err

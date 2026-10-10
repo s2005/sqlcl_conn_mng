@@ -49,8 +49,8 @@ Requirements: REQ-4, REQ-6
 
 Requirements: REQ-5, REQ-6
 
-- [ ] Call `_emit_error` from `main`
-- [ ] Error-path unit tests, including list, show, folders and usage errors
+- [x] Call `_emit_error` from `main`
+- [x] Error-path unit tests, including list, show, folders and usage errors
 
 ## Phase 5: Documentation, Version And Final Checks
 
