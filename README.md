@@ -166,10 +166,13 @@ Accepted after the command (`sqlcl-conn-mng COMMAND --help` lists them), except 
 | `add` | `--replace` | no | off | Replace an existing connection of the same name. |
 | `add` | `--no-save-password` | no | off | Do not store the password. |
 | `add` | `--password-env` | no | prompt | Environment variable holding the password; otherwise a hidden prompt. |
+| `add` | `--format` | no | `table` | `table` or `json`; json prints one JSON document, see [JSON output](#json-output). |
 | `delete` | `--name` / `--filter` / `--all` | one of the three | - | Connection(s) to delete. |
 | `delete` | `--yes` | yes in practice | off | Confirm the deletion; refused without it. |
+| `delete` | `--format` | no | `table` | `table` or `json`; json prints one JSON document, see [JSON output](#json-output). |
 | `rename` | `--name` | yes | - | Current connection name. |
 | `rename` | `--new-name` | yes | - | New connection name. |
+| `rename` | `--format` | no | `table` | `table` or `json`; json prints one JSON document, see [JSON output](#json-output). |
 | `update` | `--name` | yes | - | Connection to update (one connection; no `--filter` or `--all`). |
 | `update` | `--new-name` | no | unchanged | New connection name. |
 | `update` | `--user` | no | unchanged | New database user. |
@@ -177,19 +180,26 @@ Accepted after the command (`sqlcl-conn-mng COMMAND --help` lists them), except 
 | `update` | `--password-env` | no | unchanged | Change the password to the value of this environment variable. Excludes `--prompt-password`. |
 | `update` | `--prompt-password` | no | off | Change the password to a value typed at a hidden prompt. Excludes `--password-env`. |
 | `update` | `--no-save-password` | no | off | With a new password: do not store it. Needs a password source. |
+| `update` | `--format` | no | `table` | `table` or `json`; json prints one JSON document, see [JSON output](#json-output). |
 | `move` | `--name` / `--filter` / `--all` | one of the three | - | Connection(s) to move. |
 | `move` | `--folder` | yes | - | Destination folder, for example `/dev/local`. |
+| `move` | `--format` | no | `table` | `table` or `json`; json prints one JSON document, see [JSON output](#json-output). |
 | `clone` | `--name` | yes | - | Connection to clone. |
 | `clone` | `--new-name` | yes | - | Name of the clone. |
 | `clone` | `--user` | no | same user | User for the clone. |
 | `clone` | `--no-password` | no | off | Do not copy the saved password. |
+| `clone` | `--format` | no | `table` | `table` or `json`; json prints one JSON document, see [JSON output](#json-output). |
 | `test` | `--name` / `--filter` / `--all` | one of the three | - | Connection(s) to test. |
+| `test` | `--format` | no | `table` | `table` or `json`; json prints one JSON document, see [JSON output](#json-output). |
 | `add-folder` | `--folder` | yes | - | Folder path to create, for example `/dev/local`. |
+| `add-folder` | `--format` | no | `table` | `table` or `json`; json prints one JSON document, see [JSON output](#json-output). |
 | `delete-folder` | `--folder` | yes | - | Folder path to delete. |
 | `delete-folder` | `--force` | no | off | Also delete the connections inside, permanently. |
 | `delete-folder` | `--yes` | with `--force` | off | Confirm a forced deletion; refused without it. |
+| `delete-folder` | `--format` | no | `table` | `table` or `json`; json prints one JSON document, see [JSON output](#json-output). |
 | `export` | `--output` | yes | - | JSON file to write with the connection metadata. |
 | `export` | `--filter` | no | all | Only connections whose name matches the glob. |
+| `export` | `--format` | no | `table` | `table` or `json`; json prints one JSON document, see [JSON output](#json-output). |
 
 Notes:
 
@@ -213,6 +223,26 @@ Notes:
 - With `--all` or `--filter`, `test`, `delete` and `move` process every selected connection even when one fails. They print `[OK] NAME` or `[FAIL] NAME: reason` per connection, then `Summary: N ok, M failed`. The exit code is 1 when any connection failed or when nothing matched (`No connections match ...`).
 - `delete` with `--all` or `--filter` still needs `--yes`; without it nothing is deleted. With it, the matched names are printed before the first deletion.
 - `show` prints a JSON list (`--format json`) or the usual blocks separated by a blank line. With `--check-password`, a failing connection is logged to stderr, the others are still shown, and the exit code is 1.
+
+### JSON output
+
+With `--format json` a command prints exactly one JSON document to stdout and nothing else; the log stays on stderr. The default `table` output is unchanged. `list`, `show` and `folders` keep their own JSON bodies; every other command uses one of these envelopes.
+
+Single result (`add`, `update`, `rename`, `clone`, `add-folder`, `delete-folder`, `export`, and `delete`, `move`, `test` with `--name`):
+
+```json
+{"status": "ok", "command": "rename", "message": "...", "name": "a", "new_name": "b"}
+```
+
+`message` is the text the command prints in table mode. Extra fields: `name` (`add`, `update`, `rename`, `clone`, `delete`, `move`, `test`), `new_name` (`update` when changed, `rename`, `clone`), `folder` (`add` when given, `move`, `add-folder`, `delete-folder`), `count` and `output` (`export`).
+
+Batch (`delete`, `move`, `test` with `--filter` or `--all`): `status` is `ok`, or `error` when any item failed (exit code 1). `results` lists `{"name", "status", "message"}` per connection in processing order.
+
+```json
+{"status": "error", "command": "test", "ok": 1, "failed": 1, "results": [{"name": "a", "status": "ok", "message": "..."}, {"name": "b", "status": "error", "message": "..."}]}
+```
+
+Error: a failure that the tool catches (including in `list`, `show` and `folders`) prints `{"status": "error", "command": "list", "message": "..."}` in addition to the stderr log line, exit code 1. An empty batch match is such an error. Usage errors (exit code 2) stay plain text on stderr.
 
 ## Environment variables
 

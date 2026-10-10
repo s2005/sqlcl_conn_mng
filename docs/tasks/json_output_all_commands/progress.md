@@ -56,10 +56,10 @@ Requirements: REQ-5, REQ-6
 
 Requirements: REQ-7, REQ-8
 
-- [ ] README options table and envelope section
-- [ ] Bump version to 0.5.0 and run `uv lock`
-- [ ] Reinstall any global copy and confirm `--version`
-- [ ] `make check` and `make unit` clean
+- [x] README options table and envelope section
+- [x] Bump version to 0.5.0 and run `uv lock`
+- [x] Reinstall any global copy and confirm `--version`
+- [x] `make check` and `make unit` clean
 
 ## Review Feedback
 
