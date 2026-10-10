@@ -561,7 +561,13 @@ def _cmd_add(args: argparse.Namespace) -> int:
         if folder:
             print(sq.move_connection(runner, args.name, folder))
         return 0
-    message = f"{saved}\n{sq.move_connection(runner, args.name, folder)}" if folder else saved
+    message = saved
+    if folder:
+        try:
+            message = f"{saved}\n{sq.move_connection(runner, args.name, folder)}"
+        except (sq.SqlclError, StoreError, ValueError, OSError) as exc:
+            # The only stdout document is the error object, so it must say the save happened.
+            raise type(exc)(f"{saved}, but moving it to {folder} failed: {exc}") from exc
     _emit_ok(args, message, name=args.name, folder=folder)
     return 0
 

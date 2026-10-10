@@ -1509,3 +1509,19 @@ def test_p1_add_table_prints_saved_before_a_failing_move(
     argv += ["--connect-string", "//h/s", "--password-env", "FAKE_PWD_VAR", "--folder", "/a"]
     assert main(argv) == 1
     assert capsys.readouterr().out == "Connection dev_local saved\n"
+
+
+@pytest.mark.unit
+def test_p2_add_json_failing_move_reports_the_persisted_save(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    """Review P2: the JSON error object must say the connection was already saved."""
+    mocker.patch("sqlcl_conn_mng.sqlcl.save_connection")
+    mocker.patch("sqlcl_conn_mng.sqlcl.move_connection", side_effect=SqlclError("bad folder"))
+    mocker.patch.dict("os.environ", {"FAKE_PWD_VAR": "pw"})
+    argv = ["add", *_base(fake_home), "--name", "dev_local", "--replace", "--user", "u"]
+    argv += ["--connect-string", "//h/s", "--password-env", "FAKE_PWD_VAR", "--folder", "/a"]
+    assert main([*argv, "--format", "json"]) == 1
+    data = _json_out(capsys)
+    assert data["status"] == "error"
+    assert data["message"] == ("Connection dev_local saved, but moving it to /a failed: bad folder")

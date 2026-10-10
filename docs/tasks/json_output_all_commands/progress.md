@@ -68,3 +68,4 @@ Requirements: REQ-7, REQ-8
 ## Review Feedback (PR #5)
 
 - [x] P1: add table mode printed the save line after the move (fixed - save line printed before the move in table mode)
+- [x] P2: add --format json hid a persisted save when the folder move failed (fixed - error message says the connection was saved)
