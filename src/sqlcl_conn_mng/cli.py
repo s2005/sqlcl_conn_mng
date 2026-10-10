@@ -554,14 +554,14 @@ def _cmd_add(args: argparse.Namespace) -> int:
     )
     if store.get(args.name) is None:
         raise sq.SqlclError("SQLcl did not save the connection; check the user and connect string")
-    message = f"Connection {args.name} saved"
-    if folder:
-        moved = sq.move_connection(runner, args.name, folder)
-        if args.format == "json":
-            message = f"{message}\n{moved}"
-        else:
-            print(message)
-            message = moved
+    saved = f"Connection {args.name} saved"
+    if args.format != "json":
+        # Printed before the move, so a failing move still leaves the save confirmation on stdout.
+        print(saved)
+        if folder:
+            print(sq.move_connection(runner, args.name, folder))
+        return 0
+    message = f"{saved}\n{sq.move_connection(runner, args.name, folder)}" if folder else saved
     _emit_ok(args, message, name=args.name, folder=folder)
     return 0
 

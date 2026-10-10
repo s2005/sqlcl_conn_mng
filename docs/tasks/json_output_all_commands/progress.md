@@ -64,3 +64,7 @@ Requirements: REQ-7, REQ-8
 ## Review Feedback
 
 (Section appears when PR review feedback arrives. Each comment gets a checkbox.)
+
+## Review Feedback (PR #5)
+
+- [x] P1: add table mode printed the save line after the move (fixed - save line printed before the move in table mode)

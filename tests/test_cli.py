@@ -1495,3 +1495,17 @@ def test_usage_error_stays_plain_text(capsys: pytest.CaptureFixture[str]) -> Non
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "required" in captured.err
+
+
+@pytest.mark.unit
+def test_p1_add_table_prints_saved_before_a_failing_move(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    """Review P1: a failing folder move must still leave the save line on stdout."""
+    mocker.patch("sqlcl_conn_mng.sqlcl.save_connection")
+    mocker.patch("sqlcl_conn_mng.sqlcl.move_connection", side_effect=SqlclError("bad folder"))
+    mocker.patch.dict("os.environ", {"FAKE_PWD_VAR": "pw"})
+    argv = ["add", *_base(fake_home), "--name", "dev_local", "--replace", "--user", "u"]
+    argv += ["--connect-string", "//h/s", "--password-env", "FAKE_PWD_VAR", "--folder", "/a"]
+    assert main(argv) == 1
+    assert capsys.readouterr().out == "Connection dev_local saved\n"
