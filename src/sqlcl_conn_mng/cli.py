@@ -369,7 +369,7 @@ def _run_batch(args: argparse.Namespace, names: list[str], action: Callable[[str
     reports one line per connection, continues after a failure and ends with a summary.
     """
     if args.name is not None:
-        print(action(names[0]))
+        _emit_ok(args, action(names[0]), name=names[0], folder=getattr(args, "folder", None))
         return 0
     _require_matches(args, names)
     failed = 0
@@ -537,9 +537,15 @@ def _cmd_add(args: argparse.Namespace) -> int:
     )
     if store.get(args.name) is None:
         raise sq.SqlclError("SQLcl did not save the connection; check the user and connect string")
-    print(f"Connection {args.name} saved")
+    message = f"Connection {args.name} saved"
     if folder:
-        print(sq.move_connection(runner, args.name, folder))
+        moved = sq.move_connection(runner, args.name, folder)
+        if args.format == "json":
+            message = f"{message}\n{moved}"
+        else:
+            print(message)
+            message = moved
+    _emit_ok(args, message, name=args.name, folder=folder)
     return 0
 
 
@@ -634,7 +640,7 @@ def _cmd_update(args: argparse.Namespace) -> int:
             raise StoreError(
                 f"The password was already replaced, but the connection file was not updated: {exc}"
             ) from exc
-    print(f"Connection {conn.name} updated")
+    _emit_ok(args, f"Connection {conn.name} updated", name=conn.name, new_name=args.new_name)
     return 0
 
 
@@ -650,7 +656,8 @@ def _cmd_delete(args: argparse.Namespace) -> int:
 
 
 def _cmd_rename(args: argparse.Namespace) -> int:
-    print(sq.rename_connection(_runner(args), args.name, args.new_name))
+    message = sq.rename_connection(_runner(args), args.name, args.new_name)
+    _emit_ok(args, message, name=args.name, new_name=args.new_name)
     return 0
 
 
@@ -664,7 +671,8 @@ def _cmd_move(args: argparse.Namespace) -> int:
 
 def _cmd_clone(args: argparse.Namespace) -> int:
     runner = _runner(args)
-    print(sq.clone_connection(runner, args.name, args.new_name, args.user, args.no_password))
+    message = sq.clone_connection(runner, args.name, args.new_name, args.user, args.no_password)
+    _emit_ok(args, message, name=args.name, new_name=args.new_name)
     return 0
 
 
@@ -677,14 +685,15 @@ def _cmd_test(args: argparse.Namespace) -> int:
 
 
 def _cmd_add_folder(args: argparse.Namespace) -> int:
-    print(sq.add_folder(_runner(args), args.folder))
+    _emit_ok(args, sq.add_folder(_runner(args), args.folder), folder=args.folder)
     return 0
 
 
 def _cmd_delete_folder(args: argparse.Namespace) -> int:
     if args.force and not args.yes:
         raise ValueError(_NEED_YES)
-    print(sq.delete_folder(_runner(args), args.folder, args.force))
+    message = sq.delete_folder(_runner(args), args.folder, args.force)
+    _emit_ok(args, message, folder=args.folder)
     return 0
 
 
@@ -699,7 +708,8 @@ def _cmd_export(args: argparse.Namespace) -> int:
         items.append(item)
     text = json.dumps({"connections": items}, indent=2, sort_keys=True)
     Path(args.output).write_text(text + "\n", encoding="utf-8")
-    print(f"Exported {len(items)} connection(s) to {args.output}")
+    message = f"Exported {len(items)} connection(s) to {args.output}"
+    _emit_ok(args, message, count=len(items), output=args.output)
     return 0
 
 

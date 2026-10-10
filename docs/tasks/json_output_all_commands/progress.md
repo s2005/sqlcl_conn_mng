@@ -32,9 +32,9 @@ Requirements: REQ-1, REQ-2, REQ-6
 
 Requirements: REQ-3, REQ-6
 
-- [ ] Route add, update, rename, clone, add-folder, delete-folder, export through `_emit_ok`
-- [ ] Route the `--name` branch of `_run_batch` through `_emit_ok`
-- [ ] Per-command json and table tests
+- [x] Route add, update, rename, clone, add-folder, delete-folder, export through `_emit_ok`
+- [x] Route the `--name` branch of `_run_batch` through `_emit_ok`
+- [x] Per-command json and table tests
 
 ## Phase 3: Batch Envelope
 

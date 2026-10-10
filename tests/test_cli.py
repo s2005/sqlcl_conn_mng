@@ -1192,3 +1192,159 @@ def test_emit_error_only_in_json_mode(capsys: pytest.CaptureFixture[str]) -> Non
         "command": "add-folder",
         "message": "boom",
     }
+
+
+def _json_out(capsys: pytest.CaptureFixture[str]) -> dict[str, object]:
+    data: dict[str, object] = json.loads(capsys.readouterr().out)
+    return data
+
+
+@pytest.mark.unit
+def test_add_json_and_table(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.save_connection")
+    mocker.patch("sqlcl_conn_mng.sqlcl.move_connection", return_value="moved it")
+    mocker.patch.dict("os.environ", {"FAKE_PWD_VAR": "pw"})
+    argv = ["add", *_base(fake_home), "--name", "dev_local", "--replace", "--user", "u"]
+    argv += ["--connect-string", "//h/s", "--password-env", "FAKE_PWD_VAR", "--folder", "/a"]
+    assert main(argv) == 0
+    assert capsys.readouterr().out == "Connection dev_local saved\nmoved it\n"
+    assert main([*argv, "--format", "json"]) == 0
+    assert _json_out(capsys) == {
+        "status": "ok",
+        "command": "add",
+        "message": "Connection dev_local saved\nmoved it",
+        "name": "dev_local",
+        "folder": "/a",
+    }
+
+
+@pytest.mark.unit
+def test_add_json_without_folder_omits_it(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.save_connection")
+    mocker.patch.dict("os.environ", {"FAKE_PWD_VAR": "pw"})
+    argv = ["add", *_base(fake_home), "--name", "dev_local", "--replace", "--user", "u"]
+    argv += ["--connect-string", "//h/s", "--password-env", "FAKE_PWD_VAR", "--format", "json"]
+    assert main(argv) == 0
+    assert "folder" not in _json_out(capsys)
+
+
+@pytest.mark.unit
+def test_update_json_and_table(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    home = _upd_home(tmp_path)
+    assert main(_upd_argv(home, "--user", "scott2")) == 0
+    assert capsys.readouterr().out == "Connection alpha updated\n"
+    assert main(_upd_argv(home, "--user", "scott3", "--format", "json")) == 0
+    data = _json_out(capsys)
+    assert data["message"] == "Connection alpha updated"
+    assert data["name"] == "alpha"
+    assert "new_name" not in data
+    assert main(_upd_argv(home, "--new-name", "beta", "--format", "json")) == 0
+    assert _json_out(capsys)["new_name"] == "beta"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("command", "target", "extra", "fields"),
+    [
+        (
+            "rename",
+            "rename_connection",
+            ["--new-name", "n2"],
+            {"name": "dev_local", "new_name": "n2"},
+        ),
+        (
+            "clone",
+            "clone_connection",
+            ["--new-name", "n2"],
+            {"name": "dev_local", "new_name": "n2"},
+        ),
+    ],
+)
+def test_rename_clone_json_and_table(
+    command: str,
+    target: str,
+    extra: list[str],
+    fields: dict[str, str],
+    fake_home: Path,
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+) -> None:
+    mocker.patch(f"sqlcl_conn_mng.sqlcl.{target}", return_value="did it")
+    argv = [command, *_base(fake_home), "--name", "dev_local", *extra]
+    assert main(argv) == 0
+    assert capsys.readouterr().out == "did it\n"
+    assert main([*argv, "--format", "json"]) == 0
+    assert _json_out(capsys) == {"status": "ok", "command": command, "message": "did it", **fields}
+
+
+@pytest.mark.unit
+def test_add_folder_and_delete_folder_json_and_table(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.add_folder", return_value="made")
+    mocker.patch("sqlcl_conn_mng.sqlcl.delete_folder", return_value="gone")
+    for command, text in (("add-folder", "made"), ("delete-folder", "gone")):
+        argv = [command, *_base(fake_home), "--folder", "/x"]
+        assert main(argv) == 0
+        assert capsys.readouterr().out == f"{text}\n"
+        assert main([*argv, "--format", "json"]) == 0
+        assert _json_out(capsys) == {
+            "status": "ok",
+            "command": command,
+            "message": text,
+            "folder": "/x",
+        }
+
+
+@pytest.mark.unit
+def test_export_json_and_table(
+    fake_home: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = str(tmp_path / "e.json")
+    argv = ["export", "--home", str(fake_home), "--output", out]
+    assert main(argv) == 0
+    assert capsys.readouterr().out == f"Exported 3 connection(s) to {out}\n"
+    assert main([*argv, "--format", "json"]) == 0
+    assert _json_out(capsys) == {
+        "status": "ok",
+        "command": "export",
+        "message": f"Exported 3 connection(s) to {out}",
+        "count": 3,
+        "output": out,
+    }
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("command", "target", "extra", "fields"),
+    [
+        ("delete", "delete_connection", ["--yes"], {}),
+        ("move", "move_connection", ["--folder", "/z"], {"folder": "/z"}),
+        ("test", "check_connection", [], {}),
+    ],
+)
+def test_name_selection_json_and_table(
+    command: str,
+    target: str,
+    extra: list[str],
+    fields: dict[str, str],
+    fake_home: Path,
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+) -> None:
+    mocker.patch(f"sqlcl_conn_mng.sqlcl.{target}", return_value="did it")
+    argv = [command, *_base(fake_home), "--name", "dev_local", *extra]
+    assert main(argv) == 0
+    assert capsys.readouterr().out == "did it\n"
+    assert main([*argv, "--format", "json"]) == 0
+    assert _json_out(capsys) == {
+        "status": "ok",
+        "command": command,
+        "message": "did it",
+        "name": "dev_local",
+        **fields,
+    }

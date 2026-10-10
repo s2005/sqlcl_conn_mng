@@ -91,7 +91,7 @@ The feature can be accepted when all items are true:
 
 - [x] AC-1 - the ten commands accept `table` and `json`, default `table`, exit 2 otherwise - verified by: Phase 1 tests
 - [ ] AC-2 - table output and existing tests unchanged - verified by: Regression Check
-- [ ] AC-3 - single-result commands print the envelope with extra fields - verified by: Phase 2 tests
+- [x] AC-3 - single-result commands print the envelope with extra fields - verified by: Phase 2 tests
 - [ ] AC-4 - batch `--filter` / `--all` print the `results` envelope, exit 1 on failure - verified by: Phase 3 tests
 - [ ] AC-5 - caught failures print the error object, keep the stderr log and exit code - verified by: Phase 4 tests
 - [ ] AC-6 - `json.loads` of stdout succeeds on every path - verified by: Phase 2, 3 and 4 tests
