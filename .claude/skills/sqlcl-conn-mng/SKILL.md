@@ -24,6 +24,8 @@ uv tool update-shell
 
 Installing needs [uv](https://docs.astral.sh/uv/). Do not fall back to `uv run` from a checkout.
 
+Version 0.5.0 or newer is needed for `--format json` on every command (see [JSON output](#json-output)). If `--version` prints an older number, reinstall with `uv tool install git+https://github.com/s2005/sqlcl_conn_mng.git --reinstall`.
+
 ## Ground rules
 
 - Run every command from `<repo-root>` and always pass `--home .sqlcl` explicitly. That store is `<repo-root>/.sqlcl`.
@@ -97,7 +99,7 @@ Each starts SQLcl, which takes about 10 seconds. SQLcl always exits 0, so trust 
 | Create a folder | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng add-folder --home .sqlcl --folder /dev/local` |
 | Delete an empty folder | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng delete-folder --home .sqlcl --folder /dev/local` |
 
-`test`, `show`, `delete` and `move` take exactly one of `--name NAME`, `--filter PATTERN` (case-sensitive glob on the whole name; quote it) or `--all`; none or more than one is exit 2. A batch (`--filter` or `--all`) continues after a failure, prints `[OK] NAME` or `[FAIL] NAME: reason` per connection and `Summary: N ok, M failed`, and exits 1 on any failure or when nothing matches. Batch `test`, `delete`, `move` and `show --check-password` are refused (exit 1) when the selection contains a name shared by several connections, because SQLcl selects by name only; plain `show` still lists every record. A batch run starts SQLcl once per connection, so allow about 10 seconds each.
+`test`, `show`, `delete` and `move` take exactly one of `--name NAME`, `--filter PATTERN` (case-sensitive glob on the whole name; quote it) or `--all`; none or more than one is exit 2. A batch (`--filter` or `--all`) continues after a failure, prints `[OK] NAME` or `[FAIL] NAME: reason` per connection and `Summary: N ok, M failed`, and exits 1 on any failure or when nothing matches. Batch `test`, `delete`, `move` and `show --check-password` are refused (exit 1) when the selection contains a name shared by several connections, because SQLcl selects by name only; plain `show` still lists every record. A batch run starts SQLcl once per connection, so allow about 10 seconds each. Add `--format json` to any command in these tables to get the envelope described in [JSON output](#json-output).
 
 `test` needs a reachable database. If it fails, report the error text; do not retry with other credentials.
 
@@ -136,6 +138,16 @@ Confirm with the user before running these, naming exactly what will be removed.
 | Replace an existing connection | `add ... --replace` |
 
 Before a batch `delete`, run `list --filter PATTERN` (same pattern) and show the user the names that will go. The tool prints the matched names before the first deletion and refuses `delete` and `delete-folder --force` without `--yes`. Deleted connections and their saved passwords cannot be recovered.
+
+## JSON output
+
+Every command takes `--format json` (default `table`) and then prints exactly one JSON document to stdout; logs stay on stderr. Prefer it whenever the result is parsed. `list`, `show` and `folders` keep their own JSON bodies. All other commands use an envelope:
+
+- Single result: `{"status": "ok", "command": ..., "message": ..., "name": ...}`, plus `new_name`, `folder`, `count` or `output` where the command has them.
+- Batch (`delete`, `move`, `test` with `--filter` or `--all`): `{"status", "command", "ok", "failed", "results": [{"name", "status", "message"}]}`. `status` is `error` when any item failed, with exit code 1. The `[OK]`/`[FAIL]` lines and `Summary:` line appear only in table mode.
+- Caught failure, including an empty batch match: `{"status": "error", "command": ..., "message": ...}`, exit code 1.
+
+Usage errors (exit 2) stay plain text on stderr in both formats. The full envelope reference is the "JSON output" section of the source `README.md`.
 
 ## Exit codes
 
