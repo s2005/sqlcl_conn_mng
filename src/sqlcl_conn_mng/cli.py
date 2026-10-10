@@ -372,16 +372,33 @@ def _run_batch(args: argparse.Namespace, names: list[str], action: Callable[[str
         _emit_ok(args, action(names[0]), name=names[0], folder=getattr(args, "folder", None))
         return 0
     _require_matches(args, names)
+    as_json = args.format == "json"
+    results: list[dict[str, str]] = []
     failed = 0
     for name in names:
         try:
-            action(name)
+            message = action(name)
         except (sq.SqlclError, StoreError, ValueError, OSError) as exc:
             failed += 1
-            print(f"[FAIL] {name}: {exc}")
+            results.append({"name": name, "status": "error", "message": str(exc)})
+            if not as_json:
+                print(f"[FAIL] {name}: {exc}")
         else:
-            print(f"[OK] {name}")
-    print(f"Summary: {len(names) - failed} ok, {failed} failed")
+            results.append({"name": name, "status": "ok", "message": message})
+            if not as_json:
+                print(f"[OK] {name}")
+    if as_json:
+        _dump(
+            {
+                "status": "error" if failed else "ok",
+                "command": args.command,
+                "results": results,
+                "ok": len(names) - failed,
+                "failed": failed,
+            }
+        )
+    else:
+        print(f"Summary: {len(names) - failed} ok, {failed} failed")
     return 1 if failed else 0
 
 
@@ -650,7 +667,8 @@ def _cmd_delete(args: argparse.Namespace) -> int:
     names = _select_names(args, _store(args))
     if args.name is None:
         _require_matches(args, names)
-        print(f"Deleting {len(names)} connection(s): {', '.join(names)}")
+        if args.format != "json":
+            print(f"Deleting {len(names)} connection(s): {', '.join(names)}")
     runner = _runner(args)
     return _run_batch(args, names, lambda name: sq.delete_connection(runner, name))
 

@@ -1348,3 +1348,66 @@ def test_name_selection_json_and_table(
         "name": "dev_local",
         **fields,
     }
+
+
+@pytest.mark.unit
+def test_batch_json_all_ok(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.move_connection", return_value="moved")
+    argv = ["move", *_base(fake_home), "--filter", "*_*", "--folder", "/z", "--format", "json"]
+    assert main(argv) == 0
+    assert _json_out(capsys) == {
+        "status": "ok",
+        "command": "move",
+        "results": [
+            {"name": "dev_local", "status": "ok", "message": "moved"},
+            {"name": "root_conn", "status": "ok", "message": "moved"},
+        ],
+        "ok": 2,
+        "failed": 0,
+    }
+
+
+@pytest.mark.unit
+def test_batch_json_with_failing_item(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    _fail_on("dev_local", mocker, "sqlcl_conn_mng.sqlcl.check_connection")
+    argv = ["test", *_base(fake_home), "--all", "--format", "json"]
+    assert main(argv) == 1
+    data = _json_out(capsys)
+    assert data["status"] == "error"
+    assert data["ok"] == 2
+    assert data["failed"] == 1
+    results = data["results"]
+    assert isinstance(results, list)
+    assert [r["name"] for r in results] == ["Prod One", "dev_local", "root_conn"]
+    assert results[1] == {"name": "dev_local", "status": "error", "message": "boom dev_local"}
+    assert results[2]["status"] == "ok"
+
+
+@pytest.mark.unit
+def test_batch_table_output_unchanged(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    _fail_on("dev_local", mocker, "sqlcl_conn_mng.sqlcl.check_connection")
+    assert main(["test", *_base(fake_home), "--filter", "*_*"]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "[FAIL] dev_local: boom dev_local",
+        "[OK] root_conn",
+        "Summary: 1 ok, 1 failed",
+    ]
+
+
+@pytest.mark.unit
+def test_delete_batch_json_is_one_document(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    _fail_on("root_conn", mocker, "sqlcl_conn_mng.sqlcl.delete_connection")
+    argv = ["delete", *_base(fake_home), "--filter", "*_*", "--yes", "--format", "json"]
+    assert main(argv) == 1
+    data = _json_out(capsys)
+    assert data["command"] == "delete"
+    assert data["ok"] == 1
+    assert data["failed"] == 1

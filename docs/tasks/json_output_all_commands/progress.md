@@ -40,10 +40,10 @@ Requirements: REQ-3, REQ-6
 
 Requirements: REQ-4, REQ-6
 
-- [ ] Build the `results` envelope in `_run_batch`
-- [ ] Print the `Deleting ...` line of `delete` in table mode only
-- [ ] Batch unit tests
-- [ ] Integration test with real SQLcl
+- [x] Build the `results` envelope in `_run_batch`
+- [x] Print the `Deleting ...` line of `delete` in table mode only
+- [x] Batch unit tests
+- [x] Integration test with real SQLcl
 
 ## Phase 4: Error Object
 
