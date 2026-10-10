@@ -174,6 +174,7 @@ def build_parser() -> CliParser:
         "--password-env",
         help="Environment variable holding the password (default: prompt).",
     )
+    _add_format(p)
     p.set_defaults(func=_cmd_add)
 
     p = sub.add_parser(
@@ -200,21 +201,25 @@ def build_parser() -> CliParser:
         action="store_true",
         help="With a new password: do not store it (default: store it).",
     )
+    _add_format(p)
     p.set_defaults(func=_cmd_update)
 
     p = sub.add_parser("delete", parents=[global_options], help="Delete saved connections.")
     _add_selector(p)
     p.add_argument("--yes", action="store_true", help="Confirm the deletion.")
+    _add_format(p)
     p.set_defaults(func=_cmd_delete)
 
     p = sub.add_parser("rename", parents=[global_options], help="Rename a saved connection.")
     _add_name(p, "Current connection name.")
     p.add_argument("--new-name", required=True, help="New connection name.")
+    _add_format(p)
     p.set_defaults(func=_cmd_rename)
 
     p = sub.add_parser("move", parents=[global_options], help="Move connections into a folder.")
     _add_selector(p)
     p.add_argument("--folder", required=True, help="Destination folder, e.g. /dev/local.")
+    _add_format(p)
     p.set_defaults(func=_cmd_move)
 
     p = sub.add_parser("clone", parents=[global_options], help="Clone a saved connection.")
@@ -226,16 +231,19 @@ def build_parser() -> CliParser:
         action="store_true",
         help="Do not copy the saved password (default: copy it).",
     )
+    _add_format(p)
     p.set_defaults(func=_cmd_clone)
 
     p = sub.add_parser(
         "test", parents=[global_options], help="Test saved connections through SQLcl."
     )
     _add_selector(p)
+    _add_format(p)
     p.set_defaults(func=_cmd_test)
 
     p = sub.add_parser("add-folder", parents=[global_options], help="Create a folder.")
     p.add_argument("--folder", required=True, help="Folder path, e.g. /dev/local.")
+    _add_format(p)
     p.set_defaults(func=_cmd_add_folder)
 
     p = sub.add_parser("delete-folder", parents=[global_options], help="Delete a folder.")
@@ -246,6 +254,7 @@ def build_parser() -> CliParser:
         help="Also delete the connections inside, permanently (default: off).",
     )
     p.add_argument("--yes", action="store_true", help="Confirm a forced deletion.")
+    _add_format(p)
     p.set_defaults(func=_cmd_delete_folder)
 
     p = sub.add_parser(
@@ -253,6 +262,7 @@ def build_parser() -> CliParser:
     )
     p.add_argument("--output", required=True, help="Path of the JSON file to write.")
     _add_filter(p)
+    _add_format(p)
     p.set_defaults(func=_cmd_export)
     parser.commands.update(sub.choices)
     return parser
@@ -377,6 +387,27 @@ def _run_batch(args: argparse.Namespace, names: list[str], action: Callable[[str
 
 def _dump(data: Any) -> None:
     print(json.dumps(data, indent=2, sort_keys=True))
+
+
+def _emit_ok(args: argparse.Namespace, message: str, **fields: Any) -> None:
+    """Print message in table mode, or one JSON object holding it and the given fields."""
+    if args.format != "json":
+        print(message)
+        return
+    _dump(
+        {
+            "status": "ok",
+            "command": args.command,
+            "message": message,
+            **{key: value for key, value in fields.items() if value is not None},
+        }
+    )
+
+
+def _emit_error(args: argparse.Namespace, message: str) -> None:
+    """Print the JSON error object when the command was given --format json."""
+    if getattr(args, "format", "table") == "json":
+        _dump({"status": "error", "command": args.command, "message": message})
 
 
 def _cmd_list(args: argparse.Namespace) -> int:

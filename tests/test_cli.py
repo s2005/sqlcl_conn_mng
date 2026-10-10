@@ -10,6 +10,8 @@ from pytest_mock import MockerFixture
 
 from sqlcl_conn_mng import __version__
 from sqlcl_conn_mng.cli import (
+    _emit_error,
+    _emit_ok,
     _global_options,
     _select_names,
     _store,
@@ -1130,3 +1132,63 @@ def test_p2b_password_only_update_does_not_need_a_rewritable_file(
     run = _ok_run(mocker)
     assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR")) == 0
     assert run.call_count == 1  # type: ignore[attr-defined]
+
+
+_FORMAT_COMMANDS = [
+    "add",
+    "update",
+    "delete",
+    "rename",
+    "move",
+    "clone",
+    "test",
+    "add-folder",
+    "delete-folder",
+    "export",
+]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("command", _FORMAT_COMMANDS)
+def test_format_option_on_status_commands(command: str) -> None:
+    parser = build_parser()
+    sub = parser.commands[command]
+    option = next(a for a in sub._actions if a.dest == "format")
+    assert option.default == "table"
+    assert list(option.choices or []) == ["table", "json"]
+    with pytest.raises(SystemExit) as exc:
+        sub.parse_args(["--format", "xml"])
+    assert exc.value.code == 2
+
+
+@pytest.mark.unit
+def test_emit_ok_table_prints_message(capsys: pytest.CaptureFixture[str]) -> None:
+    args = build_parser().parse_args(["add-folder", "--folder", "/x"])
+    _emit_ok(args, "Folder created", folder="/x")
+    assert capsys.readouterr().out == "Folder created\n"
+
+
+@pytest.mark.unit
+def test_emit_ok_json_drops_none_fields(capsys: pytest.CaptureFixture[str]) -> None:
+    args = build_parser().parse_args(["add-folder", "--folder", "/x", "--format", "json"])
+    _emit_ok(args, "Folder created", folder="/x", skipped=None)
+    assert json.loads(capsys.readouterr().out) == {
+        "status": "ok",
+        "command": "add-folder",
+        "message": "Folder created",
+        "folder": "/x",
+    }
+
+
+@pytest.mark.unit
+def test_emit_error_only_in_json_mode(capsys: pytest.CaptureFixture[str]) -> None:
+    table = build_parser().parse_args(["add-folder", "--folder", "/x"])
+    _emit_error(table, "boom")
+    assert capsys.readouterr().out == ""
+    as_json = build_parser().parse_args(["add-folder", "--folder", "/x", "--format", "json"])
+    _emit_error(as_json, "boom")
+    assert json.loads(capsys.readouterr().out) == {
+        "status": "error",
+        "command": "add-folder",
+        "message": "boom",
+    }
