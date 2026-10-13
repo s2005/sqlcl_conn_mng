@@ -244,10 +244,11 @@ class ConnectionStore:
         """Copy one connection directory into target under a new id and return that id.
 
         dbtools.properties and, when present, credentials.sso are copied as opaque bytes; the
-        wallet is never opened, decoded or printed. The source file permissions are preserved. The files go to a staging directory inside
-        the target connections directory and are renamed into place, so a failure leaves no
-        partial connection directory. The target home is created when missing. The copy lands
-        in the root folder; placing it in a folder is left to SQLcl.
+        wallet is never opened, decoded or printed. The source file permissions are preserved.
+        The files go to a staging directory inside the target connections directory and are
+        renamed into place, so a failure leaves no partial connection directory. The target home
+        is created when missing. The copy lands in the root folder; placing it in a folder is
+        left to SQLcl.
         """
         source = self.home / CONNECTIONS_DIR / conn_id
         if not (source / PROPERTIES_FILE).is_file():
