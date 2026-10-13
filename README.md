@@ -139,7 +139,7 @@ Accepted after the command (`sqlcl-conn-mng COMMAND --help` lists them), except 
 
 | Option | Required | Default | Description |
 | --- | --- | --- | --- |
-| `--home` | no | `SQLCL_CONN_HOME`, else `.sqlcl` in the current directory | SQLcl store root, passed to SQLcl as `-home`. |
+| `--home` | no | `SQLCL_CONN_HOME`, else `.sqlcl` in the current directory | SQLcl store root. A relative path is made absolute against the current directory before it is passed to SQLcl as `-home`; symlinks are not resolved. |
 | `--sqlcl` | no | `SQLCL_BIN`, else `sql` on PATH | Path to the `sql` executable. |
 | `--driver` | no | `thin` | `thin` or `thick`. `thick` omits the `-thin` flag. |
 | `--timeout` | no | `120` | SQLcl run timeout in seconds. |
