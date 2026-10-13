@@ -1219,6 +1219,10 @@ def test_update_connect_string_unsupported_type_writes_nothing(
             "name=alpha\ntype=ORACLE_BASIC\nhost=h1\nport=1521\nsid=x1\nuserName=scott\n",
             "scott@h1:1521:x1",
         ),
+        (
+            "name=alpha\ntype=CUSTOM_URL\nurl=jdbc:oracle:thin:@localhost:1521/SID\nuserName=scott\n",
+            "scott@localhost:1521/SID",
+        ),
     ],
 )
 def test_p1_password_update_derives_target_of_imported_connection(

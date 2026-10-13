@@ -726,6 +726,10 @@ def _current_connect_string(conn: SavedConnection) -> str:
     """
     if conn.connect_string:
         return conn.connect_string
+    url = conn.extra.get("url", "")
+    if conn.type == "CUSTOM_URL" and url:
+        # A CUSTOM_URL connection keeps a JDBC URL; connect takes what follows the "@".
+        return url.split("@", 1)[1] if url.lower().startswith("jdbc:oracle:thin:@") else url
     host = conn.extra.get("host", "")
     service = conn.extra.get("serviceName", "")
     sid = conn.extra.get("sid", "")
