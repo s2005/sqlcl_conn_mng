@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ from sqlcl_conn_mng.cli import (
     _global_options,
     _select_names,
     _store,
+    _unmangle_folder,
     build_parser,
     main,
     render_table,
@@ -2039,3 +2041,74 @@ def test_clone_rejects_invalid_user_before_sqlcl(fake_home: Path, mocker: Mocker
     clone = _fake_clone(mocker, fake_home)
     assert main(_clone_argv(fake_home, "--user", 'bo"b')) == 1
     clone.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("C:/Program Files/Git/dev/local", "/dev/local"),
+        (r"C:\Program Files\Git\dev", "/dev"),
+        ("c:/program files/git/dev", "/dev"),
+        ("D:/tools/Git/dev", "/dev"),
+        ("C:/Program Files/Git", "/"),
+        ("C:/Program Files/Git/", "/"),
+        ("/dev", "/dev"),
+        ("dev/local", "dev/local"),
+        ("C:/data/other/dev", "C:/data/other/dev"),
+    ],
+)
+def test_unmangle_folder_without_exepath(
+    monkeypatch: pytest.MonkeyPatch, value: str, expected: str
+) -> None:
+    monkeypatch.delenv("EXEPATH", raising=False)
+    assert _unmangle_folder(value) == expected
+
+
+@pytest.mark.unit
+def test_unmangle_folder_uses_exepath(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("EXEPATH", r"C:\msys64")
+    assert _unmangle_folder("C:/msys64/dev/local") == "/dev/local"
+    assert _unmangle_folder("C:/other/dev") == "C:/other/dev"
+
+
+@pytest.mark.unit
+def test_list_folder_repairs_git_bash_path(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], caplog: pytest.LogCaptureFixture
+) -> None:
+    argv = ["list", "--home", str(fake_home), "--folder", "C:/Program Files/Git/dev"]
+    caplog.set_level(logging.DEBUG)
+    assert main([*argv, "--log-level", "DEBUG"]) == 0
+    out = capsys.readouterr().out
+    assert "dev_local" in out
+    assert "root_conn" not in out
+    assert "Git Bash path conversion" in caplog.text
+
+
+@pytest.mark.unit
+def test_git_bash_repair_is_silent_at_info(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], caplog: pytest.LogCaptureFixture
+) -> None:
+    argv = ["list", "--home", str(fake_home), "--folder", "C:/Program Files/Git/dev"]
+    assert main(argv) == 0
+    assert "dev_local" in capsys.readouterr().out
+    assert "Git Bash" not in caplog.text
+
+
+@pytest.mark.unit
+def test_move_folder_repairs_git_bash_path(fake_home: Path, mocker: MockerFixture) -> None:
+    mocker.patch.object(sq, "SqlclRunner")
+    mocker.patch.object(sq, "resolve_sql_path", return_value="sql")
+    move = mocker.patch.object(sq, "move_connection", return_value="moved")
+    argv = ["move", "--home", str(fake_home), "--name", "dev_local"]
+    assert main([*argv, "--folder", "C:/Program Files/Git/x/y"]) == 0
+    assert move.call_args.args[2] == "/x/y"
+
+
+@pytest.mark.unit
+def test_correct_folder_logs_no_warning(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], caplog: pytest.LogCaptureFixture
+) -> None:
+    assert main(["list", "--home", str(fake_home), "--folder", "/dev"]) == 0
+    capsys.readouterr()
+    assert "Git Bash" not in caplog.text

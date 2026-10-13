@@ -9,6 +9,7 @@ import getpass
 import json
 import logging
 import os
+import re
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -938,6 +939,49 @@ def _normalize_argv(parser: CliParser, argv: Sequence[str]) -> list[str]:
     return [name, *rest]
 
 
+# A drive-letter path is never a SQLcl folder, so it can only be an argument that Git Bash rewrote.
+_DRIVE_PATH = re.compile(r"^[A-Za-z]:/")
+# Fallback when EXEPATH is unset: the Git for Windows root is the first path segment named Git.
+_GIT_ROOT = re.compile(r"^[A-Za-z]:/(?:[^/]+/)*?Git(?=/|$)", re.IGNORECASE)
+
+
+def _unmangle_folder(value: str) -> str:
+    """Undo Git Bash path conversion: 'C:/Program Files/Git/dev' becomes '/dev'.
+
+    Git Bash rewrites an argument that starts with '/' into a path below the Git install
+    root before the process starts. Values that do not look rewritten are returned as given.
+    """
+    path = value.replace("\\", "/")
+    if not _DRIVE_PATH.match(path):
+        return value
+    root = os.environ.get("EXEPATH", "").replace("\\", "/").rstrip("/")
+    if root and path.lower().startswith(root.lower() + "/"):
+        rest = path[len(root) :]
+    else:
+        match = _GIT_ROOT.match(path)
+        if match is None:
+            return value
+        rest = path[match.end() :]
+    return rest or "/"
+
+
+def _fix_mangled_folders(args: argparse.Namespace) -> None:
+    """Repair --folder values that Git Bash rewrote; the repair is logged at DEBUG only."""
+    for attr in ("folder", "select_folder"):
+        value = getattr(args, attr, None)
+        if not isinstance(value, str):
+            continue
+        fixed = _unmangle_folder(value)
+        if fixed != value:
+            logger.debug(
+                "--folder %r looks like a Git Bash path conversion; using %r. "
+                "Set MSYS_NO_PATHCONV=1 to pass the value unchanged.",
+                value,
+                fixed,
+            )
+            setattr(args, attr, fixed)
+
+
 def run(args: argparse.Namespace) -> int:
     """Execute the selected subcommand. Returns the process exit code."""
     handler: Callable[[argparse.Namespace], int] = args.func
@@ -949,6 +993,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(_normalize_argv(parser, sys.argv[1:] if argv is None else argv))
     setup_logging(args.log_level)
+    _fix_mangled_folders(args)
 
     try:
         return run(args)

@@ -76,7 +76,7 @@ sqlcl-conn-mng show --name my_conn --check-password
 
 From a development checkout without the global install, prefix the commands with `uv run`.
 
-Commands with an argument that starts with `/`, such as `--folder /dev/local`, need a `MSYS_NO_PATHCONV=1` prefix in Git Bash. See [Operating systems and shells](#operating-systems-and-shells) before running them.
+Commands with an argument that starts with `/`, such as `--folder /dev/local`, should have a `MSYS_NO_PATHCONV=1` prefix in Git Bash. See [Operating systems and shells](#operating-systems-and-shells) before running them.
 
 ## Operating systems and shells
 
@@ -89,7 +89,7 @@ The tool runs on Windows, Linux and macOS and behaves the same on each. The exam
 | PowerShell on Windows, Linux or macOS | drop it | `` ` `` |
 | cmd.exe on Windows | drop it | `^` |
 
-Git Bash needs the prefix because it rewrites an argument that starts with `/` before the tool sees it, so `--folder /dev/local` arrives as `C:/Program Files/Git/dev/local` and is accepted without an error. Writing `//dev/local` is not a workaround, because the tool then receives both slashes. To set it once per session instead, run `export MSYS_NO_PATHCONV=1`.
+Git Bash rewrites an argument that starts with `/` before the tool sees it, so `--folder /dev/local` arrives as `C:/Program Files/Git/dev/local`. The tool recognises a `--folder` value that starts with a drive letter, strips the Git install root (`EXEPATH`, else the first path segment named `Git`) and uses `/dev/local`, and logs the repair only at `--log-level DEBUG`. The prefix is still the reliable form: it passes the value unchanged, and the repair cannot cover another MSYS root or an argument other than `--folder`. To set it once per session instead, run `export MSYS_NO_PATHCONV=1`.
 
 The same command in each shell:
 
