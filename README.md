@@ -152,7 +152,7 @@ Accepted after the command (`sqlcl-conn-mng COMMAND --help` lists them), except 
 
 | Command | Option | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `list` | `--folder` | no | all | Only connections in this folder or below. |
+| `list` | `--folder` | no | all | Only connections in this folder or below. `--folder /` selects only the connections at the root, those in no folder. |
 | `list` | `--filter` | no | all | Only connections whose name matches the glob; combines with `--folder` as AND. |
 | `list` | `--format` | no | `table` | `table` or `json`. |
 | `show` | `--name` / `--filter` / `--all` | one of the three | - | One connection by exact name (case-sensitive), every name matching a glob, or every connection. |
@@ -192,7 +192,8 @@ Accepted after the command (`sqlcl-conn-mng COMMAND --help` lists them), except 
 | `clone` | `--user` | no | same user | User for the clone. |
 | `clone` | `--no-password` | no | off | Do not copy the saved password. |
 | `clone` | `--format` | no | `table` | `table` or `json`; json prints one JSON document, see [JSON output](#json-output). |
-| `test` | `--name` / `--filter` / `--all` | one of the three | - | Connection(s) to test. |
+| `test` | `--name` / `--all` / `--folder` and/or `--filter` | one selector | - | Connection(s) to test: one by name, every connection, or a folder and/or glob selection. |
+| `test` | `--folder` | no | all | Only connections in this folder or below; combines with `--filter` as AND. `--folder /` selects only the connections at the root, those in no folder. |
 | `test` | `--format` | no | `table` | `table` or `json`; json prints one JSON document, see [JSON output](#json-output). |
 | `add-folder` | `--folder` | yes | - | Folder path to create, for example `/dev/local`. |
 | `add-folder` | `--format` | no | `table` | `table` or `json`; json prints one JSON document, see [JSON output](#json-output). |
@@ -222,11 +223,12 @@ Notes:
 
 ### Batch selection
 
-`test`, `show`, `delete`, `move` and `copy` take exactly one of `--name NAME`, `--filter PATTERN` or `--all`. Giving none, or more than one, is a usage error (exit code 2). `list` and `export` take an optional `--filter`. The other commands are unchanged.
+`show`, `delete`, `move` and `copy` take exactly one of `--name NAME`, `--filter PATTERN` or `--all`. `test` takes `--name NAME`, `--all`, or `--folder PATH` and/or `--filter PATTERN`; `--name` and `--all` cannot be combined with any other selector, while `--folder` and `--filter` together select the AND of both. Giving no selector, or a forbidden combination, is a usage error (exit code 2). `list` and `export` take an optional `--filter`. The other commands are unchanged.
 
 - `--filter PATTERN` is a shell-style glob (`*`, `?`, `[...]`) matched case-sensitively against the whole connection name, not against the folder. Quote the pattern so the shell does not expand it: `--filter 'dev_*'`. `--filter '*'` equals `--all`.
+- `test --folder PATH` uses the same folder-or-below match as `list --folder`: `--folder /dev` selects connections in `/dev` and in every folder below it. `--folder /` selects only the connections at the root (those in no folder), not every connection; use `--all` for that. A folder that holds no connection matches nothing (`No connections match ...`, exit code 1).
 - The names are resolved once, sorted, before the first action runs. A batch that selects a name shared by more than one connection (possible after a SQLcl import with `-duplicates REPLACE`) is refused with exit code 1 and nothing is run, because SQLcl selects connections by name only. `show` without `--check-password` reads files only, so it still lists every duplicate record. With `--name`, output and exit codes are unchanged, and a wildcard in the value is not expanded.
-- With `--all` or `--filter`, `test`, `delete`, `move` and `copy` process every selected connection even when one fails. They print `[OK] NAME` or `[FAIL] NAME: reason` per connection, then `Summary: N ok, M failed`. The exit code is 1 when any connection failed or when nothing matched (`No connections match ...`).
+- With `--all` or `--filter` (or `--folder` for `test`), `test`, `delete`, `move` and `copy` process every selected connection even when one fails. They print `[OK] NAME` or `[FAIL] NAME: reason` per connection, then `Summary: N ok, M failed`. The exit code is 1 when any connection failed or when nothing matched (`No connections match ...`).
 - `delete` with `--all` or `--filter` still needs `--yes`; without it nothing is deleted. With it, the matched names are printed before the first deletion.
 - `show` prints a JSON list (`--format json`) or the usual blocks separated by a blank line. With `--check-password`, a failing connection is logged to stderr, the others are still shown, and the exit code is 1.
 
@@ -242,7 +244,7 @@ Single result (`add`, `update`, `rename`, `clone`, `add-folder`, `delete-folder`
 
 `message` is the text the command prints in table mode. Extra fields: `name` (`add`, `update`, `rename`, `clone`, `delete`, `move`, `test`, `copy`), `new_name` (`update` when changed, `rename`, `clone`), `folder` (`add` when given, `move`, `add-folder`, `delete-folder`), `count` and `output` (`export`).
 
-Batch (`delete`, `move`, `test`, `copy` with `--filter` or `--all`): `status` is `ok`, or `error` when any item failed (exit code 1). `results` lists `{"name", "status", "message"}` per connection in processing order.
+Batch (`delete`, `move`, `copy` with `--filter` or `--all`; `test` with `--filter`, `--folder` or `--all`): `status` is `ok`, or `error` when any item failed (exit code 1). `results` lists `{"name", "status", "message"}` per connection in processing order.
 
 ```json
 {"status": "error", "command": "test", "ok": 1, "failed": 1, "results": [{"name": "a", "status": "ok", "message": "..."}, {"name": "b", "status": "error", "message": "..."}]}
@@ -279,6 +281,10 @@ sqlcl-conn-mng update --name dev_local --new-name dev_main \
 # Test every connection, or only the ones named dev_*
 sqlcl-conn-mng test --all
 sqlcl-conn-mng test --filter 'dev_*'
+
+# Test every connection in a folder and below, or only the dev_* ones in it
+MSYS_NO_PATHCONV=1 sqlcl-conn-mng test --folder /dev/local
+MSYS_NO_PATHCONV=1 sqlcl-conn-mng test --folder /dev/local --filter 'dev_*'
 
 # Move matching connections into an existing folder, then delete them
 MSYS_NO_PATHCONV=1 sqlcl-conn-mng move --filter 'tmp_*' --folder /scratch

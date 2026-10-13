@@ -24,7 +24,7 @@ uv tool update-shell
 
 Installing needs [uv](https://docs.astral.sh/uv/). Do not fall back to `uv run` from a checkout.
 
-Version 0.5.0 or newer is needed for `--format json` on every command (see [JSON output](#json-output)). Version 0.6.0 or newer is needed for `copy`. If `--version` prints an older number, reinstall with `uv tool install git+https://github.com/s2005/sqlcl_conn_mng.git --reinstall`.
+Version 0.5.0 or newer is needed for `--format json` on every command (see [JSON output](#json-output)). Version 0.6.0 or newer is needed for `copy`, and 0.7.0 or newer for `test --folder`. If `--version` prints an older number, reinstall with `uv tool install git+https://github.com/s2005/sqlcl_conn_mng.git --reinstall`.
 
 ## Ground rules
 
@@ -91,6 +91,7 @@ Each starts SQLcl, which takes about 10 seconds. SQLcl always exits 0, so trust 
 | Is a password saved? | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng show --home .sqlcl --name NAME --check-password --format json` |
 | Test a connection | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng test --home .sqlcl --name NAME` |
 | Test many connections | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng test --home .sqlcl --filter 'dev_*'` (or `--all`) |
+| Test a folder | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng test --home .sqlcl --folder /dev/local` (needs 0.7.0 or newer; add `--filter 'dev_*'` for the AND of both) |
 | Update user, connect string, name or password | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng update --home .sqlcl --name NAME [--new-name N] [--user U] [--connect-string C] [--password-env VAR or --prompt-password] [--no-save-password]` |
 | Rename | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng rename --home .sqlcl --name OLD --new-name NEW` |
 | Move into a folder | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng move --home .sqlcl --name NAME --folder /dev/local` |
@@ -100,7 +101,7 @@ Each starts SQLcl, which takes about 10 seconds. SQLcl always exits 0, so trust 
 | Create a folder | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng add-folder --home .sqlcl --folder /dev/local` |
 | Delete an empty folder | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng delete-folder --home .sqlcl --folder /dev/local` |
 
-`test`, `show`, `delete`, `move` and `copy` take exactly one of `--name NAME`, `--filter PATTERN` (case-sensitive glob on the whole name; quote it) or `--all`; none or more than one is exit 2. A batch (`--filter` or `--all`) continues after a failure, prints `[OK] NAME` or `[FAIL] NAME: reason` per connection and `Summary: N ok, M failed`, and exits 1 on any failure or when nothing matches. Batch `test`, `delete`, `move`, `copy` and `show --check-password` are refused (exit 1) when the selection contains a name shared by several connections, because SQLcl selects by name only; plain `show` still lists every record. A batch run starts SQLcl once per connection, so allow about 10 seconds each. Add `--format json` to any command in these tables to get the envelope described in [JSON output](#json-output).
+`show`, `delete`, `move` and `copy` take exactly one of `--name NAME`, `--filter PATTERN` (case-sensitive glob on the whole name; quote it) or `--all`; none or more than one is exit 2. `test` takes `--name`, `--all`, or `--folder PATH` and/or `--filter PATTERN` (AND); `--name` and `--all` cannot be combined with another selector, and no selector is exit 2. `--folder` matches the folder and everything below it, and `--folder /` matches only root-level connections. A batch (`--filter`, `--folder` or `--all`) continues after a failure, prints `[OK] NAME` or `[FAIL] NAME: reason` per connection and `Summary: N ok, M failed`, and exits 1 on any failure or when nothing matches. Batch `test`, `delete`, `move`, `copy` and `show --check-password` are refused (exit 1) when the selection contains a name shared by several connections, because SQLcl selects by name only; plain `show` still lists every record. A batch run starts SQLcl once per connection, so allow about 10 seconds each. Add `--format json` to any command in these tables to get the envelope described in [JSON output](#json-output).
 
 `test` needs a reachable database. If it fails, report the error text; do not retry with other credentials.
 
@@ -153,7 +154,7 @@ Before a batch `delete`, run `list --filter PATTERN` (same pattern) and show the
 Every command takes `--format json` (default `table`) and then prints exactly one JSON document to stdout; logs stay on stderr. Prefer it whenever the result is parsed. `list`, `show` and `folders` keep their own JSON bodies. All other commands use an envelope:
 
 - Single result: `{"status": "ok", "command": ..., "message": ..., "name": ...}`, plus `new_name`, `folder`, `count` or `output` where the command has them.
-- Batch (`delete`, `move`, `test`, `copy` with `--filter` or `--all`): `{"status", "command", "ok", "failed", "results": [{"name", "status", "message"}]}`. `status` is `error` when any item failed, with exit code 1. The `[OK]`/`[FAIL]` lines and `Summary:` line appear only in table mode.
+- Batch (`delete`, `move`, `copy` with `--filter` or `--all`; `test` with `--filter`, `--folder` or `--all`): `{"status", "command", "ok", "failed", "results": [{"name", "status", "message"}]}`. `status` is `error` when any item failed, with exit code 1. The `[OK]`/`[FAIL]` lines and `Summary:` line appear only in table mode.
 - Caught failure, including an empty batch match: `{"status": "error", "command": ..., "message": ...}`, exit code 1.
 
 Usage errors (exit 2) stay plain text on stderr in both formats. The full envelope reference is the "JSON output" section of the source `README.md`.
