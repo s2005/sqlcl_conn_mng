@@ -93,7 +93,11 @@ def normalize_folder(folder: str) -> str:
 
 
 class SqlclRunner:
-    """Run SQLcl scripts against a store root."""
+    """Run SQLcl scripts against a store root.
+
+    The store root is made absolute (os.path.abspath, symlinks not followed) because
+    SQLcl 25.4.1 doubles a relative -home on its delete path and keeps the connection.
+    """
 
     def __init__(
         self,
@@ -103,7 +107,7 @@ class SqlclRunner:
         timeout: int = DEFAULT_TIMEOUT,
     ) -> None:
         self.sql_path = sql_path
-        self.home = home
+        self.home = os.path.abspath(home)
         self.driver = driver
         self.timeout = timeout
 
