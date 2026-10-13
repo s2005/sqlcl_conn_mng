@@ -236,14 +236,15 @@ def save_connection(
     replace: bool = False,
 ) -> str:
     """Connect and save a connection; SQLcl saves only after a successful connect."""
-    target = f"{validate_value(user, 'user')}@{validate_value(connect_string, 'connect string')}"
+    # SQLcl rejects a quoted user@connect token, so each side is quoted on its own when needed.
+    target = f"{quote_arg(user, 'user')}@{quote_arg(connect_string, 'connect string')}"
     parts = ["connect", f"-save {quote_arg(name, 'name')}"]
     if save_password:
         parts.append("-savepwd")
     if replace:
         parts.append("-replace")
     parts.append(f"-password {quote_password(password)}")
-    parts.append(quote_arg(target, "user and connect string"))
+    parts.append(target)
     output = runner.run(" ".join(parts))
     if any(marker in output for marker in _SAVE_FAILURES):
         raise SqlclError(_without_password(output, password))

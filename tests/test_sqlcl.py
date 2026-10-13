@@ -93,6 +93,31 @@ def test_password_only_in_stdin(mocker: MockerFixture) -> None:
     assert "scott@//h:1521/s" in stdin
 
 
+DESCRIPTOR = (
+    "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=h)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=s)))"
+)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("user", "connect", "target"),
+    [
+        ("scott", "//h:1521/s", "scott@//h:1521/s"),
+        ("scott", DESCRIPTOR, f'scott@"{DESCRIPTOR}"'),
+        ("scott", "//h:1521/s?connect_timeout=5", 'scott@"//h:1521/s?connect_timeout=5"'),
+        ("my user", "//h:1521/s", '"my user"@//h:1521/s'),
+        ("my user", DESCRIPTOR, f'"my user"@"{DESCRIPTOR}"'),
+    ],
+)
+def test_save_quotes_only_the_connect_part(
+    mocker: MockerFixture, user: str, connect: str, target: str
+) -> None:
+    """SQLcl rejects a quoted user@connect token; only the unsafe parts are quoted on their own."""
+    mock = _fake_run(mocker, "Connected")
+    sq.save_connection(_runner(), "c1", user, connect, "p")
+    assert mock.call_args.kwargs["input"].splitlines()[0].endswith(f" {target}")
+
+
 @pytest.mark.unit
 def test_save_flags(mocker: MockerFixture) -> None:
     mock = _fake_run(mocker, "ok")
