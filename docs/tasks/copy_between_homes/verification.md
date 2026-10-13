@@ -97,13 +97,13 @@ Expected: all unit tests pass. The integration tests pass or skip with a reason,
 
 The feature can be accepted when all items are true:
 
-- [ ] AC-1 - `copy --help` lists the options; a missing `--to-home`, a missing selector or two selectors exit with code 2 - verified by: Phase 2 tests and `copy --help`
-- [ ] AC-2 - JSON single and batch envelopes; a batch with no match exits with code 1 - verified by: Phase 2 tests
+- [x] AC-1 - `copy --help` lists the options; a missing `--to-home`, a missing selector or two selectors exit with code 2 - verified by: Phase 2 tests and `copy --help`
+- [x] AC-2 - JSON single and batch envelopes; a batch with no match exits with code 1 - verified by: Phase 2 tests
 - [x] AC-3 - New 22-character id, distinct from source and target ids; files byte-identical; copy without a wallet when the source has none - verified by: Phase 1 tests
-- [ ] AC-4 - Missing target home created; source unchanged; no staging directory left after a failure - verified by: Phase 1 and Phase 2 tests
-- [ ] AC-5 - Root copy runs no SQLcl; nested copy runs `add -folder` only when missing, then `move`, against the target home; folder failure rolls back - verified by: Phase 2 tests
+- [x] AC-4 - Missing target home created; source unchanged; no staging directory left after a failure - verified by: Phase 1 and Phase 2 tests
+- [x] AC-5 - Root copy runs no SQLcl; nested copy runs `add -folder` only when missing, then `move`, against the target home; folder failure rolls back - verified by: Phase 2 tests
 - [ ] AC-6 - Real SQLcl reports the copied password as saved and the copy in its folder path - verified by: Phase 3
-- [ ] AC-7 - A case-insensitive name clash gives `[FAIL]`, the rest are copied, exit code 1, the target connection is unchanged - verified by: Phase 2 tests
-- [ ] AC-8 - Same home exits with code 1 with nothing written; a duplicate-name batch exits with code 1 with nothing copied; an unknown `--name` exits with code 1 - verified by: Phase 2 tests
+- [x] AC-7 - A case-insensitive name clash gives `[FAIL]`, the rest are copied, exit code 1, the target connection is unchanged - verified by: Phase 2 tests
+- [x] AC-8 - Same home exits with code 1 with nothing written; a duplicate-name batch exits with code 1 with nothing copied; an unknown `--name` exits with code 1 - verified by: Phase 2 tests
 - [ ] AC-9 - README and SKILL.md document `copy` per REQ-6 with no move tip, lint clean - verified by: Phase 4 lint and review
 - [ ] AC-10 - Version 0.6.0 in `pyproject.toml` and `uv.lock`; global `--version` prints 0.6.0 - verified by: Phase 4 commands

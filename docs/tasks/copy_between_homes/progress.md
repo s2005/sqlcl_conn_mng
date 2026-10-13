@@ -35,13 +35,13 @@ Requirements: REQ-2
 
 Requirements: REQ-1, REQ-3, REQ-4, REQ-5
 
-- [ ] Add the `copy` parser with `--to-home`, selector and `--format`
-- [ ] Implement `_cmd_copy`: same-home check, selection, duplicate refusal
-- [ ] Per-item name clash check (case-insensitive)
-- [ ] Folder placement through a lazily built target runner, with rollback on failure
-- [ ] CLI tests in `tests/test_cli.py`
-- [ ] `make check` clean, `make unit` passes
-- [ ] Commit phase 2
+- [x] Add the `copy` parser with `--to-home`, selector and `--format`
+- [x] Implement `_cmd_copy`: same-home check, selection, duplicate refusal
+- [x] Per-item name clash check (case-insensitive)
+- [x] Folder placement through a lazily built target runner, with rollback on failure
+- [x] CLI tests in `tests/test_cli.py`
+- [x] `make check` clean, `make unit` passes
+- [x] Commit phase 2
 
 ## Phase 3: SQLcl acceptance test
 

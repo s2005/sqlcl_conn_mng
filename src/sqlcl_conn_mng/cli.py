@@ -15,8 +15,14 @@ from typing import Any
 
 from sqlcl_conn_mng import __version__
 from sqlcl_conn_mng import sqlcl as sq
-from sqlcl_conn_mng.models import Folder, SavedConnection
-from sqlcl_conn_mng.store import CONNECT_STRING_TYPES, ConnectionStore, StoreError, resolve_home
+from sqlcl_conn_mng.models import ROOT_FOLDER, Folder, SavedConnection
+from sqlcl_conn_mng.store import (
+    CONNECT_STRING_TYPES,
+    ConnectionStore,
+    StoreError,
+    resolve_home,
+    walk_folders,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -221,6 +227,20 @@ def build_parser() -> CliParser:
     p.add_argument("--folder", required=True, help="Destination folder, e.g. /dev/local.")
     _add_format(p)
     p.set_defaults(func=_cmd_move)
+
+    p = sub.add_parser(
+        "copy",
+        parents=[global_options],
+        help="Copy saved connections, with saved passwords, into another store.",
+    )
+    p.add_argument(
+        "--to-home",
+        required=True,
+        help="Target SQLcl store root; created when missing. Connections keep their folder path.",
+    )
+    _add_selector(p)
+    _add_format(p)
+    p.set_defaults(func=_cmd_copy)
 
     p = sub.add_parser("clone", parents=[global_options], help="Clone a saved connection.")
     _add_name(p, "Name of the connection to clone.")
@@ -691,6 +711,57 @@ def _cmd_move(args: argparse.Namespace) -> int:
         _require_matches(args, names)
     runner = _runner(args)
     return _run_batch(args, names, lambda name: sq.move_connection(runner, name, args.folder))
+
+
+def _place_in_folder(
+    runner: sq.SqlclRunner, target: ConnectionStore, name: str, folder: str
+) -> None:
+    """Move the named connection of the target store into folder, creating the folder if missing."""
+    # Read per connection: an earlier item of the batch may have created the folder.
+    if folder not in {f.path for f in walk_folders(target.folders())}:
+        sq.add_folder(runner, folder)
+    sq.move_connection(runner, name, folder)
+
+
+def _cmd_copy(args: argparse.Namespace) -> int:
+    source_home = resolve_home(args.home)
+    to_home = Path(args.to_home).expanduser()
+    if source_home.resolve() == to_home.resolve():
+        raise ValueError("--home and --to-home are the same store")
+    source = ConnectionStore(source_home)
+    target = ConnectionStore(to_home)
+    conns = _select_connections(args, source)
+    if args.name is None:
+        _reject_duplicate_names(conns)
+        _require_matches(args, conns)
+    by_name = {c.name: c for c in conns}
+    # Built on first use, so a batch of root connections does not need SQLcl installed.
+    runners: list[sq.SqlclRunner] = []
+
+    def target_runner() -> sq.SqlclRunner:
+        if not runners:
+            runners.append(
+                sq.SqlclRunner(
+                    sq.resolve_sql_path(args.sqlcl), str(to_home), args.driver, args.timeout
+                )
+            )
+        return runners[0]
+
+    def copy_one(name: str) -> str:
+        conn = by_name[name]
+        clash = [c.name for c in target.connections() if c.name.casefold() == name.casefold()]
+        if clash:
+            raise ValueError(f"The target store already has a connection named {clash[0]!r}")
+        new_id = source.copy_connection_to(conn.id, target)
+        if conn.folder != ROOT_FOLDER:
+            try:
+                _place_in_folder(target_runner(), target, name, conn.folder)
+            except BaseException:
+                target.remove_connection_dir(new_id)
+                raise
+        return f"Copied {name!r} to {to_home} {conn.folder}"
+
+    return _run_batch(args, [c.name for c in conns], copy_one)
 
 
 def _cmd_clone(args: argparse.Namespace) -> int:
