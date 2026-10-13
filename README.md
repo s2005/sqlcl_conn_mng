@@ -189,7 +189,7 @@ Accepted after the command (`sqlcl-conn-mng COMMAND --help` lists them), except 
 | `copy` | `--format` | no | `table` | `table` or `json`; json prints one JSON document, see [JSON output](#json-output). |
 | `clone` | `--name` | yes | - | Connection to clone. |
 | `clone` | `--new-name` | yes | - | Name of the clone. |
-| `clone` | `--user` | no | same user | User for the clone. |
+| `clone` | `--user` | no | same user | User for the clone; the saved password is kept. |
 | `clone` | `--no-password` | no | off | Do not copy the saved password. |
 | `clone` | `--format` | no | `table` | `table` or `json`; json prints one JSON document, see [JSON output](#json-output). |
 | `test` | `--name` / `--all` / `--folder` and/or `--filter` | one selector | - | Connection(s) to test: one by name, every connection, or a folder and/or glob selection. |
