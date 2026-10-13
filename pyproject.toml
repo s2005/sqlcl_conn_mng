@@ -80,7 +80,8 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
-files = ["src"]
+files = ["src", "tests"]
+mypy_path = "src"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
