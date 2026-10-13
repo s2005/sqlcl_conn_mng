@@ -39,7 +39,7 @@ Requirements: REQ-1, REQ-2, REQ-3, REQ-4, REQ-7, REQ-8
 
 Requirements: REQ-5, REQ-6
 
-- [x] Bump `pyproject.toml` to 0.6.0 and run `uv lock`
+- [x] Bump `pyproject.toml` to 0.6.0 and run `uv lock` (see `notes_01.md`)
 - [x] Update `README.md` (Commands table incl. the `--folder /` root-only note, Batch selection, JSON output, Examples)
 - [x] Update `.claude/skills/sqlcl-conn-mng/SKILL.md` (command table, selector paragraph, minimum version, JSON batch line)
 - [x] Reinstall the global tool copy if one is installed; `--version` prints 0.6.0
