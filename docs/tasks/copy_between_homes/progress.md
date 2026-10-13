@@ -55,9 +55,9 @@ Requirements: REQ-2, REQ-3
 
 Requirements: REQ-6, REQ-7
 
-- [ ] Update `README.md` (commands table, note, batch and JSON lists, example, policy sentences)
-- [ ] Update `.claude/skills/sqlcl-conn-mng/SKILL.md`
-- [ ] Bump `pyproject.toml` to 0.6.0 and run `uv lock`
-- [ ] Reinstall globally and confirm `--version` prints 0.6.0
-- [ ] Markdown lint clean
-- [ ] Commit phase 4
+- [x] Update `README.md` (commands table, note, batch and JSON lists, example, policy sentences)
+- [x] Update `.claude/skills/sqlcl-conn-mng/SKILL.md`
+- [x] Bump `pyproject.toml` to 0.6.0 and run `uv lock`
+- [x] Reinstall globally and confirm `--version` prints 0.6.0
+- [x] Markdown lint clean
+- [x] Commit phase 4

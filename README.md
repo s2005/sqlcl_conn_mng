@@ -2,7 +2,7 @@
 
 Inspect and manage [Oracle SQLcl](https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/) saved connections.
 
-Read operations (`list`, `show`, `folders`, `export`) parse the SQLcl store files directly and do not need SQLcl. Every write operation runs SQLcl itself, because SQLcl is the only supported writer of the store, with one exception: `update` changes a name, user or connect string by rewriting that connection's `dbtools.properties` from Python. The tool never reads or writes `credentials.sso` (it only checks that the file exists), and never writes `folders.json`.
+Read operations (`list`, `show`, `folders`, `export`) parse the SQLcl store files directly and do not need SQLcl. Every write operation runs SQLcl itself, because SQLcl is the only supported writer of the store, with two exceptions: `update` changes a name, user or connect string by rewriting that connection's `dbtools.properties` from Python, and `copy` duplicates a connection's files into another store from Python (folder placement in the target still runs SQLcl). The tool never decodes or prints `credentials.sso` (it checks that the file exists, and `copy` duplicates it as opaque bytes), and never writes `folders.json`.
 
 ## Requirements
 
@@ -184,6 +184,9 @@ Accepted after the command (`sqlcl-conn-mng COMMAND --help` lists them), except 
 | `move` | `--name` / `--filter` / `--all` | one of the three | - | Connection(s) to move. |
 | `move` | `--folder` | yes | - | Destination folder, for example `/dev/local`. |
 | `move` | `--format` | no | `table` | `table` or `json`; json prints one JSON document, see [JSON output](#json-output). |
+| `copy` | `--to-home` | yes | - | Target SQLcl store root; created when missing. Must differ from `--home`. |
+| `copy` | `--name` / `--filter` / `--all` | one of the three | - | Connection(s) to copy. |
+| `copy` | `--format` | no | `table` | `table` or `json`; json prints one JSON document, see [JSON output](#json-output). |
 | `clone` | `--name` | yes | - | Connection to clone. |
 | `clone` | `--new-name` | yes | - | Name of the clone. |
 | `clone` | `--user` | no | same user | User for the clone. |
@@ -213,14 +216,17 @@ Notes:
 - A saved password is not changed by a user or connect string update without a password source, so it can stop matching the new user or URL. Give a password source to replace it.
 - `update` with `--password-env` or `--prompt-password` replaces the password with `connect -save NAME -replace` through SQLcl, using the new or current user and connect string (for an imported connection, the current target `//host:port/serviceName` is built from its `host`, `port` and `serviceName` keys). The connection is changed only when SQLcl connects; a failed connect leaves the store unchanged. The password is stored unless `--no-save-password` is given, and the connection id is kept.
 - `update` checks everything first (the connection exists and its name is unique, the values pass the same checks as `add`, a new name differs case-insensitively from every other connection), then runs the password step, then writes the file. If the file write fails after the password step, the error says the password was already replaced.
+- `copy` copies connections, with their saved passwords, from the store given by `--home` into the store given by `--to-home`, without asking for a password and without contacting a database. Each copy gets a new random connection id; `dbtools.properties` and `credentials.sso` are copied byte for byte, and the wallet is never opened, decoded or printed. A source without `credentials.sso` is copied without one. The files are written to a staging directory in the target and renamed into place, so a failed copy leaves no partial connection. `--to-home` and its `connections` directory are created when missing. The source store is never modified.
+- `copy` places each connection in the folder path it has in the source. A connection at `/` stays at `/` and needs no SQLcl. For a connection in a folder such as `/dev/local`, SQLcl runs against `--to-home`: `connmgr add -folder` only when the folder is missing there, then `connmgr move`. If that fails, the copied connection is removed again and reported as failed; a folder created before the failure stays. Folders without a selected connection are not copied.
+- `copy` refuses a connection whose name equals the name of any connection in the target, compared case-insensitively. It prints `[FAIL]` with the clash, writes nothing for it and goes on with the rest of the batch. Nothing is overwritten or renamed. `--home` and `--to-home` naming the same directory exits 1 before anything is written. The copy is not checked against a database; run `test --home <to-home>` for that.
 
 ### Batch selection
 
-`test`, `show`, `delete` and `move` take exactly one of `--name NAME`, `--filter PATTERN` or `--all`. Giving none, or more than one, is a usage error (exit code 2). `list` and `export` take an optional `--filter`. The other commands are unchanged.
+`test`, `show`, `delete`, `move` and `copy` take exactly one of `--name NAME`, `--filter PATTERN` or `--all`. Giving none, or more than one, is a usage error (exit code 2). `list` and `export` take an optional `--filter`. The other commands are unchanged.
 
 - `--filter PATTERN` is a shell-style glob (`*`, `?`, `[...]`) matched case-sensitively against the whole connection name, not against the folder. Quote the pattern so the shell does not expand it: `--filter 'dev_*'`. `--filter '*'` equals `--all`.
 - The names are resolved once, sorted, before the first action runs. A batch that selects a name shared by more than one connection (possible after a SQLcl import with `-duplicates REPLACE`) is refused with exit code 1 and nothing is run, because SQLcl selects connections by name only. `show` without `--check-password` reads files only, so it still lists every duplicate record. With `--name`, output and exit codes are unchanged, and a wildcard in the value is not expanded.
-- With `--all` or `--filter`, `test`, `delete` and `move` process every selected connection even when one fails. They print `[OK] NAME` or `[FAIL] NAME: reason` per connection, then `Summary: N ok, M failed`. The exit code is 1 when any connection failed or when nothing matched (`No connections match ...`).
+- With `--all` or `--filter`, `test`, `delete`, `move` and `copy` process every selected connection even when one fails. They print `[OK] NAME` or `[FAIL] NAME: reason` per connection, then `Summary: N ok, M failed`. The exit code is 1 when any connection failed or when nothing matched (`No connections match ...`).
 - `delete` with `--all` or `--filter` still needs `--yes`; without it nothing is deleted. With it, the matched names are printed before the first deletion.
 - `show` prints a JSON list (`--format json`) or the usual blocks separated by a blank line. With `--check-password`, a failing connection is logged to stderr, the others are still shown, and the exit code is 1.
 
@@ -228,15 +234,15 @@ Notes:
 
 With `--format json` a command prints exactly one JSON document to stdout and nothing else; the log stays on stderr. The default `table` output is unchanged. `list`, `show` and `folders` keep their own JSON bodies; every other command uses one of these envelopes.
 
-Single result (`add`, `update`, `rename`, `clone`, `add-folder`, `delete-folder`, `export`, and `delete`, `move`, `test` with `--name`):
+Single result (`add`, `update`, `rename`, `clone`, `add-folder`, `delete-folder`, `export`, and `delete`, `move`, `test`, `copy` with `--name`):
 
 ```json
 {"status": "ok", "command": "rename", "message": "...", "name": "a", "new_name": "b"}
 ```
 
-`message` is the text the command prints in table mode. Extra fields: `name` (`add`, `update`, `rename`, `clone`, `delete`, `move`, `test`), `new_name` (`update` when changed, `rename`, `clone`), `folder` (`add` when given, `move`, `add-folder`, `delete-folder`), `count` and `output` (`export`).
+`message` is the text the command prints in table mode. Extra fields: `name` (`add`, `update`, `rename`, `clone`, `delete`, `move`, `test`, `copy`), `new_name` (`update` when changed, `rename`, `clone`), `folder` (`add` when given, `move`, `add-folder`, `delete-folder`), `count` and `output` (`export`).
 
-Batch (`delete`, `move`, `test` with `--filter` or `--all`): `status` is `ok`, or `error` when any item failed (exit code 1). `results` lists `{"name", "status", "message"}` per connection in processing order.
+Batch (`delete`, `move`, `test`, `copy` with `--filter` or `--all`): `status` is `ok`, or `error` when any item failed (exit code 1). `results` lists `{"name", "status", "message"}` per connection in processing order.
 
 ```json
 {"status": "error", "command": "test", "ok": 1, "failed": 1, "results": [{"name": "a", "status": "ok", "message": "..."}, {"name": "b", "status": "error", "message": "..."}]}
@@ -278,6 +284,9 @@ sqlcl-conn-mng test --filter 'dev_*'
 MSYS_NO_PATHCONV=1 sqlcl-conn-mng move --filter 'tmp_*' --folder /scratch
 sqlcl-conn-mng delete --filter 'tmp_*' --yes
 
+# Copy connections, with saved passwords, into another store, keeping their folders
+sqlcl-conn-mng copy --filter 'dev_*' --to-home ../other/.sqlcl
+
 # Folder management
 MSYS_NO_PATHCONV=1 sqlcl-conn-mng add-folder --folder /dev/local
 MSYS_NO_PATHCONV=1 sqlcl-conn-mng delete-folder --folder /dev/local --force --yes
@@ -294,7 +303,7 @@ Summary of the SQLcl 25.4.1 store, observed empirically (the format is not docum
 - The store root defaults to `.sqlcl` in the current directory; run the tool from `<repo-root>` so it uses `<repo-root>/.sqlcl`. That folder is gitignored because it holds wallets with saved passwords. SQLcl's own default when no `-home` is given is `<home>/.sqlcl` in the user's home directory; this tool always passes `-home` explicitly. SQLcl's `-home <dir>` option points at that root directly.
 - `<home>/connections/<id>/` holds one saved connection. `<id>` is an opaque 22-character string (`[A-Za-z0-9_-]`) and is not derived from the name, so connections are looked up by the `name` property.
 - Each connection directory has `dbtools.properties` and `credentials.sso`. The latter is an Oracle auto-login wallet and always exists, with or without a saved password, so its size says nothing about password presence. Use `show --check-password` for that.
-- `dbtools.properties` is a Java properties file with the keys `name`, `type`, `connectionString` and `userName`. It uses Java escaping, for example `//host\:1521/svc`. Unknown keys are kept in `extra`. `update` rewrites this file with the same escaping (UTF-8, LF endings, no header), which SQLcl reads back.
+- `dbtools.properties` is a Java properties file with the keys `name`, `type`, `connectionString` and `userName`. It uses Java escaping, for example `//host\:1521/svc`. Unknown keys are kept in `extra`. `update` rewrites this file with the same escaping (UTF-8, LF endings, no header), which SQLcl reads back; `copy` copies it unchanged.
 - Folders live in `<home>/connection_folders/folders.json` as nested objects with `name`, `connections` (connection ids) and `folders`. A connection not referenced by any folder is at the root `/`. The file may be absent.
 - SQLcl always exits with status 0, even on failure, so this tool detects success from SQLcl's output text.
 

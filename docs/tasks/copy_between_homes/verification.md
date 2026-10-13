@@ -105,5 +105,5 @@ The feature can be accepted when all items are true:
 - [ ] AC-6 - Real SQLcl reports the copied password as saved and the copy in its folder path - verified by: Phase 3
 - [x] AC-7 - A case-insensitive name clash gives `[FAIL]`, the rest are copied, exit code 1, the target connection is unchanged - verified by: Phase 2 tests
 - [x] AC-8 - Same home exits with code 1 with nothing written; a duplicate-name batch exits with code 1 with nothing copied; an unknown `--name` exits with code 1 - verified by: Phase 2 tests
-- [ ] AC-9 - README and SKILL.md document `copy` per REQ-6 with no move tip, lint clean - verified by: Phase 4 lint and review
-- [ ] AC-10 - Version 0.6.0 in `pyproject.toml` and `uv.lock`; global `--version` prints 0.6.0 - verified by: Phase 4 commands
+- [x] AC-9 - README and SKILL.md document `copy` per REQ-6 with no move tip, lint clean - verified by: Phase 4 lint and review
+- [x] AC-10 - Version 0.6.0 in `pyproject.toml` and `uv.lock`; global `--version` prints 0.6.0 - verified by: Phase 4 commands
