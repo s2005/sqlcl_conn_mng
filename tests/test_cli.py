@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
-from pytest_mock import MockerFixture
+from pytest_mock import MockerFixture, MockType
 
 from sqlcl_conn_mng import __version__
 from sqlcl_conn_mng import sqlcl as sq
@@ -465,7 +465,7 @@ def _base(fake_home: Path) -> list[str]:
     return ["--home", str(fake_home), "--sqlcl", "sql-bin"]
 
 
-def _fail_on(bad: str, mocker: MockerFixture, target: str) -> MockerFixture:
+def _fail_on(bad: str, mocker: MockerFixture, target: str) -> MockType:
     """Patch a sqlcl function so it fails for one name and succeeds for the others."""
 
     def fake(runner: object, name: str, *rest: object) -> str:
@@ -473,7 +473,7 @@ def _fail_on(bad: str, mocker: MockerFixture, target: str) -> MockerFixture:
             raise SqlclError(f"boom {name}")
         return f"done {name}"
 
-    return mocker.patch(target, side_effect=fake)  # type: ignore[no-any-return]
+    return mocker.patch(target, side_effect=fake)
 
 
 @pytest.mark.unit
@@ -780,7 +780,7 @@ def _tree(home: Path) -> dict[str, bytes]:
     return {p.relative_to(home).as_posix(): p.read_bytes() for p in home.rglob("*") if p.is_file()}
 
 
-def _ok_run(mocker: MockerFixture) -> object:
+def _ok_run(mocker: MockerFixture) -> MockType:
     return mocker.patch(
         "sqlcl_conn_mng.sqlcl.subprocess.run",
         return_value=mocker.Mock(stdout="Connection created and saved", stderr=""),
@@ -919,8 +919,8 @@ def test_update_password_only_runs_replace_with_stored_values(
     before = _tree(home)
     run = _ok_run(mocker)
     assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR")) == 0
-    assert run.call_count == 1  # type: ignore[attr-defined]
-    call = run.call_args  # type: ignore[attr-defined]
+    assert run.call_count == 1
+    call = run.call_args
     script = call.kwargs["input"]
     assert "connect -save alpha -savepwd -replace" in script
     assert "scott@//h:1521/s" in script
@@ -938,7 +938,7 @@ def test_update_no_save_password_drops_savepwd(
     home = _upd_home(tmp_path)
     run = _ok_run(mocker)
     assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR", "--no-save-password")) == 0
-    script = run.call_args.kwargs["input"]  # type: ignore[attr-defined]
+    script = run.call_args.kwargs["input"]
     assert "-savepwd" not in script
     assert "-replace" in script
 
@@ -950,7 +950,7 @@ def test_update_prompt_password_uses_hidden_prompt(tmp_path: Path, mocker: Mocke
     run = _ok_run(mocker)
     assert main(_upd_argv(home, "--prompt-password")) == 0
     prompt.assert_called_once()
-    assert SECRET in run.call_args.kwargs["input"]  # type: ignore[attr-defined]
+    assert SECRET in run.call_args.kwargs["input"]
 
 
 @pytest.mark.unit
@@ -974,7 +974,7 @@ def test_update_combined_connects_with_new_values_then_writes_file(
         "beta",
     ]
     assert main(_upd_argv(home, *rest)) == 0
-    script = run.call_args.kwargs["input"]  # type: ignore[attr-defined]
+    script = run.call_args.kwargs["input"]
     # the connect runs under the old name with the new user and connect string
     assert "connect -save alpha" in script
     assert "hr@//x:1/y" in script
@@ -1074,7 +1074,7 @@ def test_p1_password_update_derives_target_of_imported_connection(
     write_connection(home, UPD_ID_A, props)
     run = _ok_run(mocker)
     assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR")) == 0
-    assert target in run.call_args.kwargs["input"]  # type: ignore[attr-defined]
+    assert target in run.call_args.kwargs["input"]
 
 
 @pytest.mark.unit
@@ -1132,7 +1132,7 @@ def test_p2b_password_only_update_does_not_need_a_rewritable_file(
     write_connection(home, UPD_ID_A, "# note\n" + UPD_PROPS.format(name="alpha"))
     run = _ok_run(mocker)
     assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR")) == 0
-    assert run.call_count == 1  # type: ignore[attr-defined]
+    assert run.call_count == 1
 
 
 _FORMAT_COMMANDS = [
