@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from sqlcl_conn_mng.properties import format_properties, parse_properties
 from sqlcl_conn_mng.sqlcl import ShowResult, SqlclRunner, show_connection
 from tests.integration.harness import (
     SPECIAL_USER,
@@ -128,3 +129,31 @@ def test_password_change_keeps_id_and_follows_flags(
     )
     assert wrong.code == 1
     assert sqlcl_show(sqlcl_path, store, "p_nopwd").user == db_settings.user
+
+
+def test_password_change_keeps_custom_url_type(
+    saved_pw_store: BuiltStore,
+    db_settings: DbSettings,
+    run_cli: RunCli,
+    sqlcl_path: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SQLcl saves a CUSTOM_URL connection as ORACLE_DATABASE; the update must put it back."""
+    monkeypatch.setenv("SQLCL_ITEST_PASSWORD", db_settings.password)
+    store = copy_store(saved_pw_store.home, tmp_path)
+    conn_id = ids_by_name(snapshot(store))["p_nopwd"][0]
+    url = f"jdbc:oracle:thin:@{db_settings.connect}"
+    props = {"name": "p_nopwd", "type": "CUSTOM_URL", "url": url, "userName": db_settings.user}
+    properties = store / "connections" / conn_id / "dbtools.properties"
+    properties.write_bytes(format_properties(props).encode("utf-8"))
+    result = run_cli(store, "update", "--name", "p_nopwd", "--password-env", "SQLCL_ITEST_PASSWORD")
+    assert_no_password(db_settings.password, result.stdout, result.stderr)
+    assert result.code == 0, result.stderr
+    assert ids_by_name(snapshot(store))["p_nopwd"] == [conn_id]
+    assert parse_properties(properties.read_text(encoding="utf-8")) == props
+    row = next(r for r in run_cli(store, "list", "--format", "json").data if r["id"] == conn_id)
+    assert row["type"] == "CUSTOM_URL"
+    assert sqlcl_show(sqlcl_path, store, "p_nopwd").password_saved is True
+    tested = run_cli(store, "test", "--name", "p_nopwd")
+    assert tested.code == 0, tested.stderr
