@@ -143,9 +143,10 @@ def test_operations_detect_success_and_failure(
 @pytest.mark.unit
 def test_operation_scripts(mocker: MockerFixture) -> None:
     mock = _fake_run(mocker, "has been cloned")
-    sq.clone_connection(_runner(), "my conn", "new", user="bob", no_password=True)
+    sq.clone_connection(_runner(), "my conn", "new", no_password=True)
     stdin = mock.call_args.kwargs["input"]
-    assert 'connmgr clone -original "my conn" -username bob -nopwd new' in stdin
+    assert 'connmgr clone -original "my conn" -nopwd new' in stdin
+    assert "-username" not in stdin
     mock = _fake_run(mocker, "has been deleted")
     sq.delete_folder(_runner(), "dev/", force=True)
     assert "connmgr delete -folder /dev -force" in mock.call_args.kwargs["input"]

@@ -158,3 +158,22 @@ def test_tool_add_with_descriptor(
     )
     assert_no_password(db_settings.password, result.stdout, result.stderr)
     assert result.code == 0
+
+
+def test_tool_clone_with_user_keeps_password(
+    saved_pw_store: BuiltStore, db_settings: DbSettings, run_cli: RunCli, tmp_path: Path
+) -> None:
+    copy = copy_store(saved_pw_store.home, tmp_path)
+    # Same Oracle user in different case, so the userName rewrite is visible and login still works.
+    user = db_settings.user.swapcase()
+    result = run_cli(copy, "clone", "--name", "p_saved", "--new-name", "t_user", "--user", user)
+    assert_no_password(db_settings.password, result.stdout, result.stderr)
+    assert result.code == 0
+    result = run_cli(copy, "show", "--name", "t_user", "--check-password", "--format", "json")
+    assert_no_password(db_settings.password, result.stdout, result.stderr)
+    assert result.code == 0
+    assert result.data["user_name"] == user
+    assert result.data["password_saved"] is True
+    result = run_cli(copy, "test", "--name", "t_user")
+    assert_no_password(db_settings.password, result.stdout, result.stderr)
+    assert result.code == 0

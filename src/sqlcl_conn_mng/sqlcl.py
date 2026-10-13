@@ -184,13 +184,13 @@ def clone_connection(
     runner: SqlclRunner,
     name: str,
     new_name: str,
-    user: str | None = None,
     no_password: bool = False,
 ) -> str:
-    """Clone a saved connection."""
+    """Clone a saved connection, keeping its user.
+
+    There is no user parameter: SQLcl's -username saves the clone without its password.
+    """
     parts = ["connmgr clone", f"-original {quote_arg(name, 'name')}"]
-    if user is not None:
-        parts.append(f"-username {quote_arg(user, 'user')}")
     if no_password:
         parts.append("-nopwd")
     parts.append(quote_arg(new_name, "new name"))

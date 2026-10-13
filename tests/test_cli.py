@@ -1958,3 +1958,84 @@ def test_copy_never_prints_wallet_bytes(
     assert main(_copy_argv(fake_home, target, "--all", "--log-level", "DEBUG")) == 0
     captured = capsys.readouterr()
     assert "fake-wallet-bytes" not in captured.out + captured.err
+
+
+def _fake_clone(mocker: MockerFixture, home: Path) -> MockType:
+    """Patch clone_connection so it copies the original into the fake store like SQLcl does."""
+    store = ConnectionStore(home)
+
+    def clone(runner: object, name: str, new_name: str, no_password: bool = False) -> str:
+        original = store.get(name)
+        assert original is not None
+        new_id = store.copy_connection_to(original.id, store)
+        store.update_properties(new_id, {"name": new_name})
+        return f"Connection {name} has been cloned to {new_name}"
+
+    return mocker.patch("sqlcl_conn_mng.sqlcl.clone_connection", side_effect=clone)
+
+
+def _clone_argv(fake_home: Path, *extra: str) -> list[str]:
+    return [
+        "clone",
+        "--home",
+        str(fake_home),
+        "--sqlcl",
+        "sql-bin",
+        "--name",
+        "root_conn",
+        "--new-name",
+        "root_copy",
+        *extra,
+    ]
+
+
+@pytest.mark.unit
+def test_clone_with_user_rewrites_user_name(fake_home: Path, mocker: MockerFixture) -> None:
+    clone = _fake_clone(mocker, fake_home)
+    assert main(_clone_argv(fake_home, "--user", "bob")) == 0
+    assert clone.call_args.args[1:] == ("root_conn", "root_copy", False)
+    store = ConnectionStore(fake_home)
+    copy = store.get("root_copy")
+    original = store.get("root_conn")
+    assert copy is not None
+    assert original is not None
+    assert copy.id != original.id
+    props = (fake_home / "connections" / copy.id / "dbtools.properties").read_text(encoding="utf-8")
+    assert "userName=bob" in props
+    assert "type=ORACLE_DATABASE" in props
+    assert "db.example.test" in props and "1521/svc" in props
+    assert original.user_name == "hr"
+
+
+@pytest.mark.unit
+def test_clone_without_user_leaves_properties_alone(fake_home: Path, mocker: MockerFixture) -> None:
+    _fake_clone(mocker, fake_home)
+    assert main(_clone_argv(fake_home, "--no-password")) == 0
+    copy = ConnectionStore(fake_home).get("root_copy")
+    assert copy is not None
+    assert copy.user_name == "hr"
+
+
+@pytest.mark.unit
+def test_clone_removes_clone_when_user_rewrite_fails(
+    fake_home: Path, mocker: MockerFixture
+) -> None:
+    _fake_clone(mocker, fake_home)
+    real = ConnectionStore.update_properties
+
+    def fail_on_user(self: ConnectionStore, conn_id: str, changes: dict[str, str]) -> None:
+        if "userName" in changes:
+            raise StoreError("boom")
+        real(self, conn_id, changes)
+
+    mocker.patch.object(ConnectionStore, "update_properties", fail_on_user)
+    before = {p.name for p in (fake_home / "connections").iterdir()}
+    assert main(_clone_argv(fake_home, "--user", "bob")) == 1
+    assert {p.name for p in (fake_home / "connections").iterdir()} == before
+
+
+@pytest.mark.unit
+def test_clone_rejects_invalid_user_before_sqlcl(fake_home: Path, mocker: MockerFixture) -> None:
+    clone = _fake_clone(mocker, fake_home)
+    assert main(_clone_argv(fake_home, "--user", 'bo"b')) == 1
+    clone.assert_not_called()

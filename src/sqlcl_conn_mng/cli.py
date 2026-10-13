@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import fnmatch
 import getpass
 import json
@@ -309,7 +310,10 @@ def build_parser() -> CliParser:
     p = sub.add_parser("clone", parents=[global_options], help="Clone a saved connection.")
     _add_name(p, "Name of the connection to clone.")
     p.add_argument("--new-name", required=True, help="Name of the clone.")
-    p.add_argument("--user", help="User for the clone (default: same as the original).")
+    p.add_argument(
+        "--user",
+        help="User for the clone (default: same as the original). The saved password is kept.",
+    )
     p.add_argument(
         "--no-password",
         action="store_true",
@@ -843,8 +847,23 @@ def _cmd_copy(args: argparse.Namespace) -> int:
 
 
 def _cmd_clone(args: argparse.Namespace) -> int:
+    user = sq.validate_value(args.user, "user") if args.user is not None else None
     runner = _runner(args)
-    message = sq.clone_connection(runner, args.name, args.new_name, args.user, args.no_password)
+    # -username is not passed to SQLcl: it saves the clone without its password (issue #11).
+    # The user is rewritten in the clone's properties instead.
+    message = sq.clone_connection(runner, args.name, args.new_name, args.no_password)
+    if user is not None:
+        store = _store(args)
+        clone = store.get(args.new_name)
+        if clone is None:
+            raise sq.SqlclError(f"SQLcl did not save the clone {args.new_name!r}")
+        try:
+            store.update_properties(clone.id, {"userName": user})
+        except BaseException:
+            # A fresh SQLcl clone lands in the root folder, so folders.json does not reference it.
+            with contextlib.suppress(OSError, StoreError):
+                store.remove_connection_dir(clone.id)
+            raise
     _emit_ok(args, message, name=args.name, new_name=args.new_name)
     return 0
 
