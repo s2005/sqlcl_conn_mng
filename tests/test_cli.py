@@ -2098,6 +2098,7 @@ def test_git_bash_repair_is_silent_at_info(
 @pytest.mark.unit
 def test_move_folder_repairs_git_bash_path(fake_home: Path, mocker: MockerFixture) -> None:
     mocker.patch.object(sq, "SqlclRunner")
+    mocker.patch.object(sq, "resolve_sql_path", return_value="sql")
     move = mocker.patch.object(sq, "move_connection", return_value="moved")
     argv = ["move", "--home", str(fake_home), "--name", "dev_local"]
     assert main([*argv, "--folder", "C:/Program Files/Git/x/y"]) == 0
