@@ -17,6 +17,7 @@ from tests.integration.harness import (
     DbSettings,
     assert_no_password,
     copy_store,
+    descriptor,
     ids_by_name,
     snapshot,
 )
@@ -157,3 +158,62 @@ def test_password_change_keeps_custom_url_type(
     assert sqlcl_show(sqlcl_path, store, "p_nopwd").password_saved is True
     tested = run_cli(store, "test", "--name", "p_nopwd")
     assert tested.code == 0, tested.stderr
+
+
+def test_update_connect_string_to_descriptor(
+    saved_pw_store: BuiltStore,
+    db_settings: DbSettings,
+    run_cli: RunCli,
+    sqlcl_path: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SQLCL_ITEST_PASSWORD", db_settings.password)
+    store = copy_store(saved_pw_store.home, tmp_path)
+    conn_id = ids_by_name(snapshot(store))["p_nopwd"][0]
+    target = descriptor(db_settings.connect)
+    result = run_cli(
+        store,
+        "update",
+        "--name",
+        "p_nopwd",
+        "--connect-string",
+        target,
+        "--password-env",
+        "SQLCL_ITEST_PASSWORD",
+    )
+    assert_no_password(db_settings.password, result.stdout, result.stderr)
+    assert result.code == 0, result.stderr
+    assert ids_by_name(snapshot(store))["p_nopwd"] == [conn_id]
+    assert sqlcl_show(sqlcl_path, store, "p_nopwd").connect_string == target
+
+
+@pytest.mark.parametrize("form", ["descriptor", "parameter"])
+def test_password_update_on_stored_connect_form(
+    form: str,
+    saved_pw_store: BuiltStore,
+    db_settings: DbSettings,
+    run_cli: RunCli,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SQLCL_ITEST_PASSWORD", db_settings.password)
+    store = copy_store(saved_pw_store.home, tmp_path)
+    conn_id = ids_by_name(snapshot(store))["p_nopwd"][0]
+    connect = (
+        descriptor(db_settings.connect)
+        if form == "descriptor"
+        else f"{db_settings.connect}?connect_timeout=5"
+    )
+    props = {
+        "name": "p_nopwd",
+        "type": "ORACLE_DATABASE",
+        "connectionString": connect,
+        "userName": db_settings.user,
+    }
+    properties = store / "connections" / conn_id / "dbtools.properties"
+    properties.write_bytes(format_properties(props).encode("utf-8"))
+    result = run_cli(store, "update", "--name", "p_nopwd", "--password-env", "SQLCL_ITEST_PASSWORD")
+    assert_no_password(db_settings.password, result.stdout, result.stderr)
+    assert result.code == 0, result.stderr
+    assert ids_by_name(snapshot(store))["p_nopwd"] == [conn_id]
