@@ -160,6 +160,35 @@ def test_tool_add_with_descriptor(
     assert result.code == 0
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="descriptor_connect_quoting: the tool quotes user@connect?param as one token",
+)
+def test_tool_add_with_parameter_connect(
+    saved_pw_store: BuiltStore,
+    db_settings: DbSettings,
+    run_cli: RunCli,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SQLCL_ITEST_PASSWORD", db_settings.password)
+    copy = copy_store(saved_pw_store.home, tmp_path)
+    result = run_cli(
+        copy,
+        "add",
+        "--name",
+        "t_param",
+        "--user",
+        db_settings.user,
+        "--connect-string",
+        f"{db_settings.connect}?connect_timeout=5",
+        "--password-env",
+        "SQLCL_ITEST_PASSWORD",
+    )
+    assert_no_password(db_settings.password, result.stdout, result.stderr)
+    assert result.code == 0
+
+
 def test_tool_clone_with_user_keeps_password(
     saved_pw_store: BuiltStore, db_settings: DbSettings, run_cli: RunCli, tmp_path: Path
 ) -> None:
