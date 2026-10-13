@@ -91,7 +91,7 @@ Each starts SQLcl, which takes about 10 seconds. SQLcl always exits 0, so trust 
 | Is a password saved? | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng show --home .sqlcl --name NAME --check-password --format json` |
 | Test a connection | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng test --home .sqlcl --name NAME` |
 | Test many connections | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng test --home .sqlcl --filter 'dev_*'` (or `--all`) |
-| Test a folder | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng test --home .sqlcl --folder /dev/local` (needs 0.6.0 or newer; add `--filter 'dev_*'` for the AND of both) |
+| Test a folder | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng test --home .sqlcl --folder /dev/local` (needs 0.7.0 or newer; add `--filter 'dev_*'` for the AND of both) |
 | Update user, connect string, name or password | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng update --home .sqlcl --name NAME [--new-name N] [--user U] [--connect-string C] [--password-env VAR or --prompt-password] [--no-save-password]` |
 | Rename | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng rename --home .sqlcl --name OLD --new-name NEW` |
 | Move into a folder | `MSYS_NO_PATHCONV=1 sqlcl-conn-mng move --home .sqlcl --name NAME --folder /dev/local` |

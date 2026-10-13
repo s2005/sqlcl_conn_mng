@@ -33,7 +33,7 @@
 - **Why it matters**: the CLAUDE.md version rule applies to a new input option.
 - **Options**: (a) minor, 0.5.0 to 0.6.0; (b) patch.
 - **Recommended**: (a) - an additive option on a 0.x version is a minor bump.
-- **Answer**: (a) 0.6.0, with `uv lock` - decided by reading `pyproject.toml` (version 0.5.0), `git remote get-url origin` (owner s2005) and `gh repo view --json isFork` (false).
+- **Answer**: (a) minor; first 0.6.0, then 0.7.0 because PR 8 claims 0.6.0 and merges first (see `notes_01.md`), with `uv lock` - decided by reading `pyproject.toml` (version 0.5.0), PR 8 (also 0.6.0, merges first; user decision 2026-10-13), `git remote get-url origin` (owner s2005) and `gh repo view --json isFork` (false).
 
 ## Q6: Which documents change?
 

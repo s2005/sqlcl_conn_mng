@@ -2,7 +2,7 @@
 
 ## Overview
 
-Two phases. Phase 1 gives `test` its own selector set (`--name` / `--all` / `--folder` + `--filter`), validated by a parser subclass so usage errors stay exit 2, and threads the folder through the shared selection code under a dedicated dest. Phase 2 bumps the version to 0.6.0 and documents the option in `README.md` and the agent skill.
+Two phases. Phase 1 gives `test` its own selector set (`--name` / `--all` / `--folder` + `--filter`), validated by a parser subclass so usage errors stay exit 2, and threads the folder through the shared selection code under a dedicated dest. Phase 2 bumps the version to 0.7.0 and documents the option in `README.md` and the agent skill.
 
 ```mermaid
 flowchart LR
@@ -18,7 +18,7 @@ flowchart LR
 | ---- | ----------- | ----------- |
 | `src/sqlcl_conn_mng/cli.py` | Update | `test` selector helper and parser subclass; folder narrowing in `_select_connections`; `_describe_selection` names the folder |
 | `tests/test_cli.py` | Update | Root-folder pin; parser rule, selection, empty match, batch and regression tests for `test --folder` |
-| `pyproject.toml` | Update | Version 0.6.0 |
+| `pyproject.toml` | Update | Version 0.7.0 |
 | `uv.lock` | Update | Refreshed by `uv lock` |
 | `README.md` | Update | Command table, Batch selection, JSON output, Examples |
 | `.claude/skills/sqlcl-conn-mng/SKILL.md` | Update | Command table, selector paragraph, minimum version |
@@ -61,9 +61,9 @@ Requirements: REQ-5, REQ-6
 
 ### Implementation Work (Phase 2)
 
-- `pyproject.toml`: `version = "0.6.0"`; run `uv lock`.
+- `pyproject.toml`: `version = "0.7.0"`; run `uv lock`.
 - `README.md`: in the Commands table add a `test` `--folder` row and change the `test` selector row to "`--name` / `--all` / `--folder` and/or `--filter`"; in Batch selection describe the `test` selector rule and the AND combination, and that `--folder` uses the same folder-or-below match as `list`, and that `--folder /` selects only root-level connections; extend the `list` `--folder` row with the same root note; in JSON output add `--folder` to the batch list; in Examples add `MSYS_NO_PATHCONV=1 sqlcl-conn-mng test --folder /dev/local` and the `--folder` + `--filter` form.
-- `.claude/skills/sqlcl-conn-mng/SKILL.md`: add a "Test a folder" row with `MSYS_NO_PATHCONV=1 sqlcl-conn-mng test --home .sqlcl --folder /dev/local` (and `--filter` AND form); update the selector paragraph to state the `test` rule; state that 0.6.0 or newer is needed for `test --folder`; add `--folder` to the JSON batch line.
+- `.claude/skills/sqlcl-conn-mng/SKILL.md`: add a "Test a folder" row with `MSYS_NO_PATHCONV=1 sqlcl-conn-mng test --home .sqlcl --folder /dev/local` (and `--filter` AND form); update the selector paragraph to state the `test` rule; state that 0.7.0 or newer is needed for `test --folder`; add `--folder` to the JSON batch line.
 - Reinstall any global copy: `uv tool install --from . sqlcl-conn-mng --reinstall`, only if one is installed (`uv tool list`).
 
 ### Test Work (Phase 2)
@@ -72,7 +72,7 @@ Requirements: REQ-5, REQ-6
 
 ### Verification (Phase 2)
 
-- `uv run sqlcl-conn-mng --version` prints `sqlcl-conn-mng 0.6.0`.
+- `uv run sqlcl-conn-mng --version` prints `sqlcl-conn-mng 0.7.0`.
 - `markdownlint-cli2 README.md .claude/skills/sqlcl-conn-mng/SKILL.md docs/tasks/test_folder_filter/*.md` - no errors.
 - `make check` and `make unit` - clean.
 

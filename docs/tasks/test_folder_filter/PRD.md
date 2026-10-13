@@ -34,11 +34,11 @@ A `--folder` selection (with or without `--filter`) is a batch, identical to a `
 
 ### REQ-5: Version bump
 
-The project version goes from 0.5.0 to 0.6.0 in `pyproject.toml`, `uv.lock` is refreshed with `uv lock`, and `sqlcl-conn-mng --version` prints 0.6.0.
+The project version goes from 0.6.0 (set by PR 8, which merges first) to 0.7.0 in `pyproject.toml`, `uv.lock` is refreshed with `uv lock`, and `sqlcl-conn-mng --version` prints 0.7.0.
 
 ### REQ-6: Documentation
 
-`README.md` documents `test --folder` in the command table, the Batch selection section, the JSON output batch list and the Examples. `.claude/skills/sqlcl-conn-mng/SKILL.md` documents it in its command table and selector paragraph, and states that 0.6.0 or newer is needed for `test --folder`.
+`README.md` documents `test --folder` in the command table, the Batch selection section, the JSON output batch list and the Examples. `.claude/skills/sqlcl-conn-mng/SKILL.md` documents it in its command table and selector paragraph, and states that 0.7.0 or newer is needed for `test --folder`.
 
 ### REQ-7: Other commands unchanged
 
@@ -62,8 +62,8 @@ The project version goes from 0.5.0 to 0.6.0 in `pyproject.toml`, `uv.lock` is r
 - **AC-3** - `test` with no selector, `--name` plus `--folder`, `--name` plus `--filter`, `--name` plus `--all`, `--all` plus `--folder`, `--all` plus `--filter` each exit 2 from both `parse_args` and `main` (REQ-2)
 - **AC-4** - A folder selection matching nothing exits 1 without running SQLcl, and the log names every selector given; with `--format json` the error envelope carries the same message (REQ-3)
 - **AC-5** - A folder batch prints per-connection lines and a summary in table mode, the batch envelope in JSON mode, exits 1 on any failure, and refuses a selection holding a duplicated name (REQ-4)
-- **AC-6** - `pyproject.toml` and `uv.lock` carry 0.6.0 and `uv run sqlcl-conn-mng --version` prints 0.6.0 (REQ-5)
-- **AC-7** - `README.md` and `SKILL.md` describe `test --folder` and its AND rule with `--filter`, and `SKILL.md` names 0.6.0 as the minimum version for it (REQ-6)
+- **AC-6** - `pyproject.toml` and `uv.lock` carry 0.7.0 and `uv run sqlcl-conn-mng --version` prints 0.7.0 (REQ-5)
+- **AC-7** - `README.md` and `SKILL.md` describe `test --folder` and its AND rule with `--filter`, and `SKILL.md` names 0.7.0 as the minimum version for it (REQ-6)
 - **AC-8** - The existing selector tests for `show`, `delete`, `move` pass unchanged, and `move --filter ... --folder X` still moves into `X` (REQ-7)
 - **AC-9** - `list --folder /` and `test --folder /` both select only `root_conn` in the test store, not the connections in `/dev/local` or `/prod` (REQ-8)
 

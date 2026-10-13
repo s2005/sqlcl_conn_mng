@@ -16,8 +16,8 @@ Two different releases would share the version 0.6.0, and the `SKILL.md` minimum
 
 ## Status
 
-Open.
+Resolved 2026-10-13: the user decided PR 8 merges first, so this branch bumps to 0.7.0.
 
 ## Next step
 
-After the first of PR 8 and PR 9 merges, rebase the other PR, bump it to 0.7.0, run `uv lock`, and update its `SKILL.md` minimum version.
+After PR 8 merges, rebase this branch on `main` and resolve the expected conflicts in `pyproject.toml`, `uv.lock` and the `SKILL.md` minimum-version sentence, keeping 0.7.0 for `test --folder`.
