@@ -1219,6 +1219,10 @@ def test_update_connect_string_unsupported_type_writes_nothing(
             "name=alpha\ntype=ORACLE_BASIC\nhost=h1\nport=1521\nsid=x1\nuserName=scott\n",
             "scott@h1:1521:x1",
         ),
+        (
+            "name=alpha\ntype=CUSTOM_URL\nurl=jdbc:oracle:thin:@localhost:1521/SID\nuserName=scott\n",
+            "scott@localhost:1521/SID",
+        ),
     ],
 )
 def test_p1_password_update_derives_target_of_imported_connection(
@@ -1235,6 +1239,35 @@ def test_p1_password_update_derives_target_of_imported_connection(
     run = _ok_run(mocker)
     assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR")) == 0
     assert target in run.call_args.kwargs["input"]
+
+
+@pytest.mark.unit
+def test_password_update_keeps_custom_url_type(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+) -> None:
+    """SQLcl saves a CUSTOM_URL connection as ORACLE_DATABASE; the update puts the type back."""
+    monkeypatch.setenv("FAKE_PWD_VAR", SECRET)
+    home = tmp_path / "custom_url_pw"
+    props = (
+        "name=alpha\ntype=CUSTOM_URL\nurl=jdbc:oracle:thin:@localhost:1521/SID\nuserName=scott\n"
+    )
+    write_connection(home, UPD_ID_A, props)
+    target = home / "connections" / UPD_ID_A / "dbtools.properties"
+
+    def fake_sqlcl(*_args: object, **_kwargs: object) -> object:
+        # What SQLcl does on connect -save -replace: rewrite the connection as ORACLE_DATABASE.
+        target.write_text(
+            "name=alpha\ntype=ORACLE_DATABASE\nconnectionString=localhost\\:1521/SID\nuserName=scott\n"
+        )
+        return mocker.Mock(stdout="Connection created and saved", stderr="")
+
+    mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run", side_effect=fake_sqlcl)
+    assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR", "--user", "hr")) == 0
+    text = target.read_text()
+    assert "type=CUSTOM_URL" in text
+    assert "url=jdbc" in text
+    assert "connectionString" not in text
+    assert "userName=hr" in text
 
 
 @pytest.mark.unit

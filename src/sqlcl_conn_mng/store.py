@@ -26,6 +26,7 @@ KNOWN_KEYS = {"name", "type", "connectionString", "userName"}
 WRITABLE_KEYS = frozenset({"name", "connectionString", "userName"})
 TYPE_DATABASE = "ORACLE_DATABASE"
 TYPE_BASIC = "ORACLE_BASIC"
+TYPE_CUSTOM_URL = "CUSTOM_URL"
 # Types whose connect string SQLcl reads from connectionString (TYPE_DATABASE), or can be
 # converted to that form the way SQLcl does itself on connect -save -replace (TYPE_BASIC).
 CONNECT_STRING_TYPES = frozenset({TYPE_DATABASE, TYPE_BASIC})
@@ -225,6 +226,27 @@ class ConnectionStore:
         if "connectionString" in changes:
             props = _with_connect_string_form(props)
         props.update(changes)
+        self._write_properties(target, props)
+
+    def read_properties(self, conn_id: str) -> dict[str, str]:
+        """Return the dbtools.properties of one connection as a dict (the wallet is not read)."""
+        target = self.home / CONNECTIONS_DIR / conn_id / PROPERTIES_FILE
+        if not target.is_file():
+            raise StoreError(f"Connection properties file not found for id {conn_id}")
+        return parse_properties(_read_text(target))
+
+    def replace_properties(self, conn_id: str, props: Mapping[str, str]) -> None:
+        """Rewrite one dbtools.properties with exactly props, atomically.
+
+        Used to put back the type and target keys of a connection SQLcl rewrote when it saved a
+        new password, for example a CUSTOM_URL connection that SQLcl turns into ORACLE_DATABASE.
+        """
+        self.check_rewritable(conn_id)
+        target = self.home / CONNECTIONS_DIR / conn_id / PROPERTIES_FILE
+        self._write_properties(target, dict(props))
+
+    @staticmethod
+    def _write_properties(target: Path, props: dict[str, str]) -> None:
         fd, tmp_name = tempfile.mkstemp(dir=target.parent, prefix=".dbtools.", suffix=".tmp")
         try:
             with os.fdopen(fd, "wb") as handle:

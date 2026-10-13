@@ -20,6 +20,7 @@ from sqlcl_conn_mng import sqlcl as sq
 from sqlcl_conn_mng.models import ROOT_FOLDER, Folder, SavedConnection
 from sqlcl_conn_mng.store import (
     CONNECT_STRING_TYPES,
+    TYPE_CUSTOM_URL,
     ConnectionStore,
     StoreError,
     resolve_home,
@@ -726,6 +727,10 @@ def _current_connect_string(conn: SavedConnection) -> str:
     """
     if conn.connect_string:
         return conn.connect_string
+    url = conn.extra.get("url", "")
+    if conn.type == TYPE_CUSTOM_URL and url:
+        # A CUSTOM_URL connection keeps a JDBC URL; connect takes what follows the "@".
+        return url.split("@", 1)[1] if url.lower().startswith("jdbc:oracle:thin:@") else url
     host = conn.extra.get("host", "")
     service = conn.extra.get("serviceName", "")
     sid = conn.extra.get("sid", "")
@@ -749,9 +754,13 @@ def _cmd_update(args: argparse.Namespace) -> int:
     if changes:
         # Refuse an unwritable file now, before a password step that cannot be undone.
         store.check_rewritable(conn.id)
+    original: dict[str, str] | None = None
     if wants_password:
         connect_string = changes.get("connectionString") or _current_connect_string(conn)
         password = _read_password(args)
+        # SQLcl saves a CUSTOM_URL connection back as ORACLE_DATABASE; keep the original to restore.
+        if conn.type == TYPE_CUSTOM_URL:
+            original = store.read_properties(conn.id)
         sq.save_connection(
             _runner(args),
             conn.name,
@@ -761,9 +770,14 @@ def _cmd_update(args: argparse.Namespace) -> int:
             save_password=not args.no_save_password,
             replace=True,
         )
+    if original is not None:
+        changes = {**original, **changes}
     if changes:
         try:
-            store.update_properties(conn.id, changes)
+            if original is not None:
+                store.replace_properties(conn.id, changes)
+            else:
+                store.update_properties(conn.id, changes)
         except (StoreError, OSError) as exc:
             if not wants_password:
                 raise
