@@ -63,6 +63,70 @@ def _add_selector(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_test_selector(parser: argparse.ArgumentParser) -> None:
+    """Add the test selector: --name | --all, or --filter and/or --folder (combined as AND).
+
+    The rule that one of the four is required, and that --name / --all exclude
+    --filter / --folder, is enforced by _TestSelectorParser after parsing.
+    """
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--name", help="Connection name.")
+    group.add_argument(
+        "--all",
+        dest="select_all",
+        action="store_true",
+        help="Every saved connection.",
+    )
+    parser.add_argument(
+        "--filter",
+        dest="name_filter",
+        metavar="PATTERN",
+        help="Connections whose name matches the case-sensitive glob PATTERN; "
+        "combines with --folder as AND.",
+    )
+    parser.add_argument(
+        "--folder",
+        dest="select_folder",
+        metavar="PATH",
+        help="Connections in this folder or below; combines with --filter as AND.",
+    )
+
+
+class _TestSelectorParser(argparse.ArgumentParser):
+    """Subcommand parser that can check the test selector rule after parsing (exit 2).
+
+    argparse groups cannot express "--filter and --folder may combine, but
+    neither may combine with --name or --all", so the rule is checked here.
+    add_subparsers(parser_class=...) fixes one class for every command, and
+    add_parser forwards its extra keywords to it, so the check is opt-in via
+    test_selector=True (only the test command passes it).
+    """
+
+    def __init__(self, *args: Any, test_selector: bool = False, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._test_selector = test_selector
+
+    def parse_known_args(self, args: Any = None, namespace: Any = None) -> Any:
+        ns, extras = super().parse_known_args(args, namespace)
+        if not self._test_selector:
+            return ns, extras
+        name = getattr(ns, "name", None)
+        select_all = getattr(ns, "select_all", False)
+        name_filter = getattr(ns, "name_filter", None)
+        select_folder = getattr(ns, "select_folder", None)
+        if name is None and not select_all and name_filter is None and select_folder is None:
+            self.error("one of the arguments --name --filter --folder --all is required")
+        first = "--name" if name is not None else "--all" if select_all else None
+        second = None
+        if name_filter is not None:
+            second = "--filter"
+        elif select_folder is not None:
+            second = "--folder"
+        if first and second:
+            self.error(f"argument {second}: not allowed with argument {first}")
+        return ns, extras
+
+
 def _add_filter(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--filter",
@@ -72,9 +136,9 @@ def _add_filter(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _global_options() -> argparse.ArgumentParser:
+def _global_options() -> _TestSelectorParser:
     """Build the parent parser holding the options shared by every command."""
-    parent = argparse.ArgumentParser(add_help=False)
+    parent = _TestSelectorParser(add_help=False)
     parent.add_argument(
         "--home",
         help="SQLcl store root (default: SQLCL_CONN_HOME, else .sqlcl in the current directory).",
@@ -137,7 +201,7 @@ def build_parser() -> CliParser:
         dest="command",
         required=True,
         metavar="COMMAND",
-        parser_class=argparse.ArgumentParser,
+        parser_class=_TestSelectorParser,
         prog=parser.prog,
     )
 
@@ -255,9 +319,12 @@ def build_parser() -> CliParser:
     p.set_defaults(func=_cmd_clone)
 
     p = sub.add_parser(
-        "test", parents=[global_options], help="Test saved connections through SQLcl."
+        "test",
+        parents=[global_options],
+        test_selector=True,
+        help="Test saved connections through SQLcl.",
     )
-    _add_selector(p)
+    _add_test_selector(p)
     _add_format(p)
     p.set_defaults(func=_cmd_test)
 
@@ -335,7 +402,7 @@ def _matches(name: str, pattern: str) -> bool:
 
 
 def _select_connections(args: argparse.Namespace, store: ConnectionStore) -> list[SavedConnection]:
-    """Resolve --name, --filter or --all to saved connections, sorted by name then id."""
+    """Resolve --name, --filter, --folder or --all to saved connections, sorted by name then id."""
     if args.name is not None:
         conn = store.get(args.name)
         if conn is None:
@@ -343,7 +410,12 @@ def _select_connections(args: argparse.Namespace, store: ConnectionStore) -> lis
         return [conn]
     conns = store.connections()
     if not args.select_all:
-        conns = [c for c in conns if _matches(c.name, args.name_filter)]
+        # select_folder is set only by test; move's --folder (dest folder) is a destination.
+        select_folder = getattr(args, "select_folder", None)
+        if select_folder is not None:
+            conns = [c for c in conns if _in_folder(c, select_folder)]
+        if args.name_filter is not None:
+            conns = [c for c in conns if _matches(c.name, args.name_filter)]
     return conns
 
 
@@ -374,7 +446,13 @@ def _select_names(args: argparse.Namespace, store: ConnectionStore) -> list[str]
 def _describe_selection(args: argparse.Namespace) -> str:
     if args.select_all:
         return "--all"
-    return f"--filter {args.name_filter!r}"
+    parts = []
+    select_folder = getattr(args, "select_folder", None)
+    if select_folder is not None:
+        parts.append(f"--folder {select_folder!r}")
+    if args.name_filter is not None:
+        parts.append(f"--filter {args.name_filter!r}")
+    return " ".join(parts)
 
 
 def _require_matches(args: argparse.Namespace, selected: Sequence[object]) -> None:
