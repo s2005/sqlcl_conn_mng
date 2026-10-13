@@ -48,7 +48,7 @@ Requirements: REQ-1, REQ-3, REQ-4, REQ-5
 Requirements: REQ-2, REQ-3
 
 - [x] Create `tests/integration/test_copy_compat.py`
-- [ ] Run with the test database up; confirm the skip message without it
+- [x] Run with the test database up (GitHub CI run 38377344287, ubuntu-latest); confirm the skip message without it (local run)
 - [x] Commit phase 3
 
 ## Phase 4: Documentation and version
