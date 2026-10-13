@@ -24,16 +24,16 @@
 
 Requirements: REQ-1, REQ-2, REQ-3, REQ-4, REQ-7, REQ-8
 
-- [ ] Add `_TestSelectorParser` with the post-parse selector rule (exit 2)
-- [ ] Add `_add_test_selector` (`--name` / `--all` group, `--filter`, `--folder` as `select_folder`)
-- [ ] Build the `test` subparser with the new parser class and selector helper
-- [ ] Narrow by `select_folder` then `name_filter` in `_select_connections`
-- [ ] Name the folder in `_describe_selection`
-- [ ] Remove `test` from `SELECTOR_COMMANDS`; add the selector rule tests (parse_args and main)
-- [ ] Add selection, AND, empty-match, batch output and duplicate-name tests for `test --folder`
-- [ ] Add the `--folder /` root-only pin test for `list` and `test`
-- [ ] Add the `move --folder` destination regression test
-- [ ] `make check` and `make unit` pass
+- [x] Add `_TestSelectorParser` with the post-parse selector rule (exit 2)
+- [x] Add `_add_test_selector` (`--name` / `--all` group, `--filter`, `--folder` as `select_folder`)
+- [x] Build the `test` subparser with the new parser class and selector helper
+- [x] Narrow by `select_folder` then `name_filter` in `_select_connections`
+- [x] Name the folder in `_describe_selection`
+- [x] Remove `test` from `SELECTOR_COMMANDS`; add the selector rule tests (parse_args and main)
+- [x] Add selection, AND, empty-match, batch output and duplicate-name tests for `test --folder`
+- [x] Add the `--folder /` root-only pin test for `list` and `test`
+- [x] Add the `move --folder` destination regression test
+- [x] `make check` and `make unit` pass
 
 ## Phase 2: Version and documentation
 

@@ -394,7 +394,6 @@ def test_no_command_option_shares_a_global_option_name() -> None:
 
 
 SELECTOR_COMMANDS = [
-    ["test"],
     ["show"],
     ["delete", "--yes"],
     ["move", "--folder", "/x"],
@@ -754,6 +753,161 @@ def test_empty_batch_is_reported_before_sqlcl_is_resolved(
     assert main(argv) == 1
     assert "No connections match" in caplog.text
     assert "SQLcl not found" not in caplog.text
+
+
+# ---- test --folder ----
+
+# Selector sets that test must refuse: --name / --all excludes --filter / --folder.
+TEST_SELECTOR_FORBIDDEN = [
+    [],
+    ["--name", "a", "--all"],
+    ["--name", "a", "--filter", "a"],
+    ["--name", "a", "--folder", "/dev"],
+    ["--all", "--filter", "a"],
+    ["--all", "--folder", "/dev"],
+]
+
+
+@pytest.mark.unit
+def test_test_selector_rules() -> None:
+    """test takes --name, --all, or --filter and/or --folder; nothing else."""
+    parser = build_parser()
+    for ok in (
+        ["--name", "a"],
+        ["--all"],
+        ["--filter", "a*"],
+        ["--folder", "/dev"],
+        ["--folder", "/dev", "--filter", "a*"],
+    ):
+        parser.parse_args(["test", *ok])
+    for bad in TEST_SELECTOR_FORBIDDEN:
+        with pytest.raises(SystemExit) as exc:
+            parser.parse_args(["test", *bad])
+        assert exc.value.code == 2
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("bad", TEST_SELECTOR_FORBIDDEN, ids=lambda b: " ".join(b) or "none")
+def test_test_selector_rules_through_main(
+    bad: list[str], fake_home: Path, mocker: MockerFixture
+) -> None:
+    """The same forbidden selector sets exit 2 from main and start no SQLcl."""
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    with pytest.raises(SystemExit) as exc:
+        main(["test", *_base(fake_home), *bad])
+    assert exc.value.code == 2
+    run.assert_not_called()
+
+
+@pytest.mark.unit
+def test_test_folder_matches_list(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    """test --folder tests exactly the connections list --folder returns."""
+    assert main(["list", "--home", str(fake_home), "--folder", "/dev", "--format", "json"]) == 0
+    listed = [c["name"] for c in json.loads(capsys.readouterr().out)]
+    fake = mocker.patch("sqlcl_conn_mng.sqlcl.check_connection", return_value="ok")
+    assert main(["test", *_base(fake_home), "--folder", "/dev"]) == 0
+    assert [c.args[1] for c in fake.call_args_list] == listed == ["dev_local"]
+
+
+@pytest.mark.unit
+def test_test_folder_and_filter(fake_home: Path, mocker: MockerFixture) -> None:
+    """--folder and --filter combine as AND."""
+    fake = mocker.patch("sqlcl_conn_mng.sqlcl.check_connection", return_value="ok")
+    assert main(["test", *_base(fake_home), "--folder", "/dev", "--filter", "dev_*"]) == 0
+    assert [c.args[1] for c in fake.call_args_list] == ["dev_local"]
+    fake.reset_mock()
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    assert main(["test", *_base(fake_home), "--folder", "/dev", "--filter", "root_*"]) == 1
+    fake.assert_not_called()
+    run.assert_not_called()
+
+
+@pytest.mark.unit
+def test_test_folder_empty_message(
+    fake_home: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+    mocker: MockerFixture,
+) -> None:
+    """An empty folder selection names every selector, in the log and the JSON error."""
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    assert main(["test", *_base(fake_home), "--folder", "/nope"]) == 1
+    assert "No connections match --folder '/nope'" in caplog.text
+    caplog.clear()
+    argv = ["test", *_base(fake_home), "--folder", "/dev", "--filter", "x*"]
+    assert main(argv) == 1
+    assert "No connections match --folder '/dev' --filter 'x*'" in caplog.text
+    capsys.readouterr()
+    assert main([*argv, "--format", "json"]) == 1
+    data = _json_out(capsys)
+    assert data["status"] == "error"
+    assert data["message"] == "No connections match --folder '/dev' --filter 'x*'"
+    run.assert_not_called()
+
+
+@pytest.mark.unit
+def test_test_folder_batch_output(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    """A folder selection is a normal batch: table lines, JSON envelope, exit 1 on failure."""
+    mocker.patch("sqlcl_conn_mng.sqlcl.check_connection", return_value="ok")
+    assert main(["test", *_base(fake_home), "--folder", "/dev"]) == 0
+    assert capsys.readouterr().out.splitlines() == ["[OK] dev_local", "Summary: 1 ok, 0 failed"]
+    assert main(["test", *_base(fake_home), "--folder", "/dev", "--format", "json"]) == 0
+    assert _json_out(capsys) == {
+        "status": "ok",
+        "command": "test",
+        "results": [{"name": "dev_local", "status": "ok", "message": "ok"}],
+        "ok": 1,
+        "failed": 0,
+    }
+    _fail_on("dev_local", mocker, "sqlcl_conn_mng.sqlcl.check_connection")
+    assert main(["test", *_base(fake_home), "--folder", "/dev"]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "[FAIL] dev_local: boom dev_local",
+        "Summary: 0 ok, 1 failed",
+    ]
+
+
+@pytest.mark.unit
+def test_test_folder_rejects_duplicate_names(
+    dup_home: Path, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Two connections named dev_local in /dev/local are refused for --folder /dev."""
+    folders_file = dup_home / "connection_folders" / "folders.json"
+    data = json.loads(folders_file.read_text(encoding="utf-8"))
+    data["folders"][0]["folders"][0]["connections"].append("DDDDDDDDDDDDDDDDDDDDDD")
+    folders_file.write_text(json.dumps(data), encoding="utf-8")
+    run = mocker.patch("sqlcl_conn_mng.sqlcl.subprocess.run")
+    assert main(["test", *_base(dup_home), "--folder", "/dev"]) == 1
+    assert "Ambiguous selection" in caplog.text
+    assert "'dev_local'" in caplog.text
+    run.assert_not_called()
+
+
+@pytest.mark.unit
+def test_root_folder_is_root_only(
+    fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
+) -> None:
+    """--folder / selects only root-level connections, for list and for test."""
+    assert main(["list", "--home", str(fake_home), "--folder", "/", "--format", "json"]) == 0
+    assert [c["name"] for c in json.loads(capsys.readouterr().out)] == ["root_conn"]
+    fake = mocker.patch("sqlcl_conn_mng.sqlcl.check_connection", return_value="ok")
+    assert main(["test", *_base(fake_home), "--folder", "/"]) == 0
+    assert [c.args[1] for c in fake.call_args_list] == ["root_conn"]
+
+
+@pytest.mark.unit
+def test_move_folder_is_not_a_selector(fake_home: Path, mocker: MockerFixture) -> None:
+    """move --folder stays the destination; it never narrows the selection."""
+    fake = mocker.patch("sqlcl_conn_mng.sqlcl.move_connection", return_value="moved")
+    assert main(["move", *_base(fake_home), "--filter", "*_*", "--folder", "/x"]) == 0
+    assert [(c.args[1], c.args[2]) for c in fake.call_args_list] == [
+        ("dev_local", "/x"),
+        ("root_conn", "/x"),
+    ]
 
 
 # ---- update ----

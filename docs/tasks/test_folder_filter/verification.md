@@ -72,12 +72,12 @@ Expected: all pass, including the unchanged `test_selector_requires_exactly_one`
 
 The feature can be accepted when all items are true:
 
-- [ ] AC-1 - `test --folder /dev` runs SQLcl for exactly the names `list --folder /dev` returns - verified by: `test_test_folder_matches_list`
-- [ ] AC-2 - `--folder` + `--filter` select the AND of both - verified by: `test_test_folder_and_filter`
-- [ ] AC-3 - no selector and each forbidden pair exit 2 from `parse_args` and `main` - verified by: `test_test_selector_rules`, `test_test_selector_rules_through_main`
-- [ ] AC-4 - an empty folder selection exits 1 without SQLcl and names every selector, in the log and the JSON error envelope - verified by: `test_test_folder_empty_message`
-- [ ] AC-5 - a folder batch prints per-connection lines and summary, the JSON batch envelope, exits 1 on failure, and refuses duplicated names - verified by: `test_test_folder_batch_output`, `test_test_folder_rejects_duplicate_names`
+- [x] AC-1 - `test --folder /dev` runs SQLcl for exactly the names `list --folder /dev` returns - verified by: `test_test_folder_matches_list`
+- [x] AC-2 - `--folder` + `--filter` select the AND of both - verified by: `test_test_folder_and_filter`
+- [x] AC-3 - no selector and each forbidden pair exit 2 from `parse_args` and `main` - verified by: `test_test_selector_rules`, `test_test_selector_rules_through_main`
+- [x] AC-4 - an empty folder selection exits 1 without SQLcl and names every selector, in the log and the JSON error envelope - verified by: `test_test_folder_empty_message`
+- [x] AC-5 - a folder batch prints per-connection lines and summary, the JSON batch envelope, exits 1 on failure, and refuses duplicated names - verified by: `test_test_folder_batch_output`, `test_test_folder_rejects_duplicate_names`
 - [ ] AC-6 - 0.6.0 in `pyproject.toml` and `uv.lock`, and `--version` prints it - verified by: Phase 2 verification commands
 - [ ] AC-7 - `README.md` and `SKILL.md` document `test --folder`, the AND rule, and the 0.6.0 minimum - verified by: Phase 2 grep and a read of both sections
-- [ ] AC-8 - `show`, `delete`, `move` selector tests pass unchanged and `move --folder` stays the destination - verified by: `test_selector_requires_exactly_one`, `test_move_folder_is_not_a_selector`, Regression Check
-- [ ] AC-9 - `--folder /` selects only root-level connections for `list` and `test` - verified by: `test_root_folder_is_root_only`
+- [x] AC-8 - `show`, `delete`, `move` selector tests pass unchanged and `move --folder` stays the destination - verified by: `test_selector_requires_exactly_one`, `test_move_folder_is_not_a_selector`, Regression Check
+- [x] AC-9 - `--folder /` selects only root-level connections for `list` and `test` - verified by: `test_root_folder_is_root_only`
