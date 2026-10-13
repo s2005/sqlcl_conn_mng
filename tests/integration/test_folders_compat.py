@@ -148,3 +148,19 @@ def test_tool_force_delete_folder(
     expected["folders"] = expected["folders"][1:]
     assert tree_of(copy, run_cli) == expected
     assert sorted(r["name"] for r in listed(copy, run_cli)) == ["imp2", "imp3"]
+
+
+def test_tool_force_delete_folder_relative_home(
+    folder_store: BuiltStore, run_cli: RunCli, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # SQLcl 25.4.1 doubles a relative -home on its delete path, so the tool must pass it absolute.
+    copy = copy_store(folder_store.home, tmp_path)
+    monkeypatch.chdir(copy.parent)
+    relative = Path(copy.name)
+    result = run_cli(relative, "delete-folder", "--folder", "/empty", "--force", "--yes")
+    assert result.code == 0
+    assert "SEVERE" not in result.stdout + result.stderr
+    expected = final_tree()
+    expected["folders"] = expected["folders"][1:]
+    assert tree_of(relative, run_cli) == expected
+    assert sorted(r["name"] for r in listed(relative, run_cli)) == ["imp2", "imp3"]

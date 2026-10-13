@@ -33,10 +33,10 @@ Requirements: REQ-1, REQ-3
 
 Requirements: REQ-2, REQ-3
 
-- [ ] Add `test_tool_delete_relative_home`
-- [ ] Add `test_tool_force_delete_folder_relative_home`
-- [ ] Confirm both fail without the Phase 1 change, then restore it
-- [ ] `make integration` passes
+- [x] Add `test_tool_delete_relative_home`
+- [x] Add `test_tool_force_delete_folder_relative_home`
+- [x] Confirm both fail without the Phase 1 change, then restore it
+- [x] `make integration` passes
 
 ## Phase 3: Version and README
 

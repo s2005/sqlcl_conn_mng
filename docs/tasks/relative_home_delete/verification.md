@@ -87,7 +87,7 @@ The feature can be accepted when all items are true:
 
 - [x] AC-1 - relative home becomes absolute in `argv()`, absolute home is kept - verified by: Phase 1 unit tests
 - [ ] AC-2 - `delete` with a relative `--home` exits 0, removes the connection, no `SEVERE` - verified by: `test_tool_delete_relative_home` and the "Defect Reproduces" rerun
-- [ ] AC-3 - `delete-folder --force` with a relative `--home` exits 0 and removes the folder and its connection - verified by: `test_tool_force_delete_folder_relative_home`
+- [x] AC-3 - `delete-folder --force` with a relative `--home` exits 0 and removes the folder and its connection - verified by: `test_tool_force_delete_folder_relative_home`
 - [ ] AC-4 - `copy` message prints `--to-home` as given - verified by: existing `copy` tests in `make unit` and `make integration` passing unchanged
 - [ ] AC-5 - `uv run sqlcl-conn-mng --version` prints 0.7.1 - verified by: Phase 3 command
 - [ ] AC-6 - README `--home` row says the path is made absolute - verified by: reading `README.md` and the lint run
