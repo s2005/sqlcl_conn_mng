@@ -99,7 +99,7 @@ The feature can be accepted when all items are true:
 
 - [ ] AC-1 - `copy --help` lists the options; a missing `--to-home`, a missing selector or two selectors exit with code 2 - verified by: Phase 2 tests and `copy --help`
 - [ ] AC-2 - JSON single and batch envelopes; a batch with no match exits with code 1 - verified by: Phase 2 tests
-- [ ] AC-3 - New 22-character id, distinct from source and target ids; files byte-identical; copy without a wallet when the source has none - verified by: Phase 1 tests
+- [x] AC-3 - New 22-character id, distinct from source and target ids; files byte-identical; copy without a wallet when the source has none - verified by: Phase 1 tests
 - [ ] AC-4 - Missing target home created; source unchanged; no staging directory left after a failure - verified by: Phase 1 and Phase 2 tests
 - [ ] AC-5 - Root copy runs no SQLcl; nested copy runs `add -folder` only when missing, then `move`, against the target home; folder failure rolls back - verified by: Phase 2 tests
 - [ ] AC-6 - Real SQLcl reports the copied password as saved and the copy in its folder path - verified by: Phase 3

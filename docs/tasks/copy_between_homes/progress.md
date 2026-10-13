@@ -24,12 +24,12 @@
 
 Requirements: REQ-2
 
-- [ ] Add `new_connection_id` to `store.py`
-- [ ] Add `ConnectionStore.copy_connection_to` with staging directory and atomic rename
-- [ ] Add `ConnectionStore.remove_connection_dir`
-- [ ] Store tests in `tests/test_store.py`
-- [ ] `make check` clean, store tests pass
-- [ ] Commit phase 1
+- [x] Add `new_connection_id` to `store.py`
+- [x] Add `ConnectionStore.copy_connection_to` with staging directory and atomic rename
+- [x] Add `ConnectionStore.remove_connection_dir`
+- [x] Store tests in `tests/test_store.py`
+- [x] `make check` clean, store tests pass
+- [x] Commit phase 1
 
 ## Phase 2: `copy` subcommand
 

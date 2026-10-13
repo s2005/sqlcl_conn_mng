@@ -1,14 +1,16 @@
-"""Access to the SQLcl saved-connection store: read everything, rewrite only dbtools.properties."""
+"""Access to the SQLcl saved-connection store: read everything, write dbtools.properties and copies."""
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import json
 import os
 import re
+import secrets
 import shutil
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Container, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +33,8 @@ CONNECT_STRING_TYPES = frozenset({TYPE_DATABASE, TYPE_BASIC})
 # connectionString and drops them when it rewrites the connection as ORACLE_DATABASE.
 BASIC_TARGET_KEYS = frozenset({"host", "port", "serviceName"})
 _ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{22}")
+# Prefix of the staging directory of a copy; the dot keeps it from matching _ID_PATTERN.
+_STAGING_PREFIX = ".copy."
 _COMMENT_MARKERS = "#!"
 _LINE_BREAK = re.compile(r"\r\n|\r|\n")
 
@@ -48,6 +52,14 @@ def resolve_home(option: str | None, environ: Mapping[str, str] | None = None) -
     if from_env:
         return Path(from_env).expanduser()
     return Path.cwd() / ".sqlcl"
+
+
+def new_connection_id(existing: Container[str]) -> str:
+    """Return a new connection id: 22 URL-safe characters from 16 random bytes, not in existing."""
+    while True:
+        candidate = base64.urlsafe_b64encode(secrets.token_bytes(16)).rstrip(b"=").decode("ascii")
+        if candidate not in existing:
+            return candidate
 
 
 def _read_text(path: Path) -> str:
@@ -115,8 +127,9 @@ def _with_connect_string_form(props: dict[str, str]) -> dict[str, str]:
 class ConnectionStore:
     """View of a SQLcl store root (the directory given to -home).
 
-    Everything is read-only except update_properties, which rewrites one dbtools.properties.
-    The wallet and folders.json are never written.
+    Everything is read-only except update_properties, which rewrites one dbtools.properties,
+    and copy_connection_to / remove_connection_dir, which add and remove whole connection
+    directories. The wallet is never opened and folders.json is never written.
     """
 
     def __init__(self, home: Path) -> None:
@@ -226,3 +239,39 @@ class ConnectionStore:
     def has_wallet(self, conn_id: str) -> bool:
         """Report whether credentials.sso exists; the file is never opened."""
         return (self.home / CONNECTIONS_DIR / conn_id / WALLET_FILE).is_file()
+
+    def copy_connection_to(self, conn_id: str, target: ConnectionStore) -> str:
+        """Copy one connection directory into target under a new id and return that id.
+
+        dbtools.properties and, when present, credentials.sso are copied as opaque bytes; the
+        wallet is never opened, decoded or printed. The files go to a staging directory inside
+        the target connections directory and are renamed into place, so a failure leaves no
+        partial connection directory. The target home is created when missing. The copy lands
+        in the root folder; placing it in a folder is left to SQLcl.
+        """
+        source = self.home / CONNECTIONS_DIR / conn_id
+        if not (source / PROPERTIES_FILE).is_file():
+            raise StoreError(f"Connection properties file not found for id {conn_id}")
+        root = target.home / CONNECTIONS_DIR
+        root.mkdir(parents=True, exist_ok=True)
+        new_id = new_connection_id({entry.name for entry in root.iterdir()})
+        staging = Path(tempfile.mkdtemp(dir=root, prefix=_STAGING_PREFIX))
+        try:
+            shutil.copyfile(source / PROPERTIES_FILE, staging / PROPERTIES_FILE)
+            if (source / WALLET_FILE).is_file():
+                shutil.copyfile(source / WALLET_FILE, staging / WALLET_FILE)
+            os.replace(staging, root / new_id)
+        except BaseException:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise
+        return new_id
+
+    def remove_connection_dir(self, conn_id: str) -> None:
+        """Remove one connection directory, e.g. a copy that could not be placed in a folder.
+
+        Only a name shaped like a connection id is accepted. The caller must know that
+        folders.json does not reference the id.
+        """
+        if not _ID_PATTERN.fullmatch(conn_id):
+            raise StoreError(f"Not a connection id: {conn_id!r}")
+        shutil.rmtree(self.home / CONNECTIONS_DIR / conn_id)

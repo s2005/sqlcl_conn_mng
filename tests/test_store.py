@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
+from pytest_mock import MockerFixture
 
-from sqlcl_conn_mng.store import ConnectionStore, StoreError, resolve_home
+from sqlcl_conn_mng.store import ConnectionStore, StoreError, new_connection_id, resolve_home
 from tests.conftest import ID_DEV, ID_PROD, ID_ROOT, write_connection
 
 
@@ -217,3 +219,102 @@ def test_update_properties_connect_string_refused_for_other_type(tmp_path: Path)
     with pytest.raises(StoreError, match="ORACLE_TNS"):
         ConnectionStore(home).update_properties(ID_DEV, {"connectionString": "//h:1/s"})
     assert props.read_bytes() == before
+
+
+# ---- copy_connection_to ----
+
+_NEW_ID = re.compile(r"[A-Za-z0-9_-]{22}")
+
+
+def _snapshot(home: Path) -> dict[str, bytes]:
+    return {p.relative_to(home).as_posix(): p.read_bytes() for p in home.rglob("*") if p.is_file()}
+
+
+@pytest.mark.unit
+def test_new_connection_id_shape_and_skips_existing() -> None:
+    new_id = new_connection_id(set())
+    assert _NEW_ID.fullmatch(new_id)
+    assert new_connection_id({new_id}) != new_id
+
+
+@pytest.mark.unit
+def test_copy_connection_is_byte_identical_under_a_new_id(fake_home: Path, tmp_path: Path) -> None:
+    target = ConnectionStore(tmp_path / "target")
+    write_connection(target.home, ID_ROOT, "name=other\ntype=ORACLE_DATABASE\n")
+    new_id = ConnectionStore(fake_home).copy_connection_to(ID_DEV, target)
+    assert _NEW_ID.fullmatch(new_id)
+    assert new_id not in {ID_DEV, ID_ROOT}
+    src = fake_home / "connections" / ID_DEV
+    dst = target.home / "connections" / new_id
+    assert (dst / "dbtools.properties").read_bytes() == (src / "dbtools.properties").read_bytes()
+    assert (dst / "credentials.sso").read_bytes() == b"fake-wallet-bytes"
+    assert sorted(p.name for p in dst.iterdir()) == ["credentials.sso", "dbtools.properties"]
+    copied = target.get("dev_local")
+    assert copied is not None
+    assert (copied.id, copied.folder) == (new_id, "/")
+
+
+@pytest.mark.unit
+def test_copy_connection_without_wallet_has_none(fake_home: Path, tmp_path: Path) -> None:
+    (fake_home / "connections" / ID_ROOT / "credentials.sso").unlink()
+    target = ConnectionStore(tmp_path / "target")
+    new_id = ConnectionStore(fake_home).copy_connection_to(ID_ROOT, target)
+    assert (target.home / "connections" / new_id / "dbtools.properties").is_file()
+    assert not target.has_wallet(new_id)
+
+
+@pytest.mark.unit
+def test_copy_connection_creates_a_missing_target_home(fake_home: Path, tmp_path: Path) -> None:
+    target = ConnectionStore(tmp_path / "deep" / "target")
+    ConnectionStore(fake_home).copy_connection_to(ID_PROD, target)
+    assert [c.name for c in target.connections()] == ["Prod One"]
+
+
+@pytest.mark.unit
+def test_copy_connection_leaves_the_source_unchanged(fake_home: Path, tmp_path: Path) -> None:
+    before = _snapshot(fake_home)
+    ConnectionStore(fake_home).copy_connection_to(ID_DEV, ConnectionStore(tmp_path / "target"))
+    assert _snapshot(fake_home) == before
+
+
+@pytest.mark.unit
+def test_copy_connection_missing_source_raises(fake_home: Path, tmp_path: Path) -> None:
+    target = ConnectionStore(tmp_path / "target")
+    with pytest.raises(StoreError, match="not found"):
+        ConnectionStore(fake_home).copy_connection_to("Z" * 22, target)
+    assert not (target.home / "connections").exists()
+
+
+@pytest.mark.unit
+def test_copy_connection_failure_leaves_no_staging_directory(
+    fake_home: Path, tmp_path: Path, mocker: MockerFixture
+) -> None:
+    target = ConnectionStore(tmp_path / "target")
+    mocker.patch("sqlcl_conn_mng.store.shutil.copyfile", side_effect=OSError("disk full"))
+    with pytest.raises(OSError, match="disk full"):
+        ConnectionStore(fake_home).copy_connection_to(ID_DEV, target)
+    assert list((target.home / "connections").iterdir()) == []
+
+
+@pytest.mark.unit
+def test_leftover_staging_directory_is_not_a_connection(fake_home: Path, tmp_path: Path) -> None:
+    target = ConnectionStore(tmp_path / "target")
+    staging = target.home / "connections" / ".copy.abc"
+    staging.mkdir(parents=True)
+    (staging / "dbtools.properties").write_text("name=half\n", encoding="utf-8")
+    assert target.connections() == []
+
+
+@pytest.mark.unit
+def test_remove_connection_dir_removes_only_that_directory(fake_home: Path) -> None:
+    ConnectionStore(fake_home).remove_connection_dir(ID_DEV)
+    assert not (fake_home / "connections" / ID_DEV).exists()
+    assert (fake_home / "connections" / ID_ROOT).is_dir()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("bad", ["..", "../store", "short", "", "x" * 23])
+def test_remove_connection_dir_refuses_a_non_id(fake_home: Path, bad: str) -> None:
+    with pytest.raises(StoreError, match="Not a connection id"):
+        ConnectionStore(fake_home).remove_connection_dir(bad)
+    assert (fake_home / "connections").is_dir()
