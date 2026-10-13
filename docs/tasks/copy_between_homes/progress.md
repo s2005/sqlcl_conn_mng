@@ -47,9 +47,9 @@ Requirements: REQ-1, REQ-3, REQ-4, REQ-5
 
 Requirements: REQ-2, REQ-3
 
-- [ ] Create `tests/integration/test_copy_compat.py`
+- [x] Create `tests/integration/test_copy_compat.py`
 - [ ] Run with the test database up; confirm the skip message without it
-- [ ] Commit phase 3
+- [x] Commit phase 3
 
 ## Phase 4: Documentation and version
 
