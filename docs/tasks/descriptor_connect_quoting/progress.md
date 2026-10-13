@@ -24,24 +24,24 @@
 
 Requirements: REQ-2, REQ-3, REQ-4
 
-- [ ] Add the strict xfail integration tests
-- [ ] Verify they all XFAIL in the podman container
+- [x] Add the strict xfail integration tests
+- [x] Verify they all XFAIL in the podman container
 
 ## Phase 2: Fix the quoting
 
 Requirements: REQ-1, REQ-5
 
-- [ ] Change `save_connection`
-- [ ] Add the unit tests
-- [ ] Run `make check` and the unit tests
+- [x] Change `save_connection`
+- [x] Add the unit tests
+- [x] Run `make check` and the unit tests
 
 ## Phase 3: Flip the markers and bump the version
 
 Requirements: REQ-2, REQ-3, REQ-4, REQ-6
 
-- [ ] Remove the xfail markers
-- [ ] Bump the version to 0.9.1 and run `uv lock`
-- [ ] Run the integration suite in the podman container
+- [x] Remove the xfail markers
+- [x] Bump the version to 0.9.1 and run `uv lock`
+- [x] Run the integration suite in the podman container
 
 ## Review Feedback
 

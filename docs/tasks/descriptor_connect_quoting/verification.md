@@ -64,8 +64,8 @@ uv run pytest -q
 
 The fix can be accepted when all items are true:
 
-- [ ] AC-1 - the command text for safe, descriptor and `?` connect strings - verified by: Phase 2 unit tests
-- [ ] AC-2 - `add` with a descriptor and with a `?` string passes - verified by: Phase 3 integration run
-- [ ] AC-3 - `update --connect-string` with a descriptor passes - verified by: Phase 3 integration run
-- [ ] AC-4 - `update --password-env` on stored descriptor and `?` connections passes - verified by: Phase 3 integration run
-- [ ] AC-5 - version prints 0.9.1 - verified by: `uv run sqlcl-conn-mng --version`
+- [x] AC-1 - the command text for safe, descriptor and `?` connect strings - verified by: Phase 2 unit tests
+- [x] AC-2 - `add` with a descriptor and with a `?` string passes - verified by: Phase 3 integration run
+- [x] AC-3 - `update --connect-string` with a descriptor passes - verified by: Phase 3 integration run
+- [x] AC-4 - `update --password-env` on stored descriptor and `?` connections passes - verified by: Phase 3 integration run
+- [x] AC-5 - version prints 0.9.1 - verified by: `uv run sqlcl-conn-mng --version`

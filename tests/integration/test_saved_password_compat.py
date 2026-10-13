@@ -133,13 +133,6 @@ def test_export_has_wallets_and_no_password(
     assert all(c["wallet_present"] is True for c in connections)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "descriptor_connect_quoting: the tool quotes user@(DESCRIPTION=...) as one token "
-        "and SQLcl then fails to connect"
-    ),
-)
 def test_tool_add_with_descriptor(
     saved_pw_store: BuiltStore, db_settings: DbSettings, run_cli: RunCli, tmp_path: Path
 ) -> None:
@@ -160,10 +153,6 @@ def test_tool_add_with_descriptor(
     assert result.code == 0
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="descriptor_connect_quoting: the tool quotes user@connect?param as one token",
-)
 def test_tool_add_with_parameter_connect(
     saved_pw_store: BuiltStore,
     db_settings: DbSettings,

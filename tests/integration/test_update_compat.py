@@ -160,13 +160,6 @@ def test_password_change_keeps_custom_url_type(
     assert tested.code == 0, tested.stderr
 
 
-QUOTING_XFAIL = pytest.mark.xfail(
-    strict=True,
-    reason="descriptor_connect_quoting: the tool quotes user@connect as one token",
-)
-
-
-@QUOTING_XFAIL
 def test_update_connect_string_to_descriptor(
     saved_pw_store: BuiltStore,
     db_settings: DbSettings,
@@ -195,7 +188,6 @@ def test_update_connect_string_to_descriptor(
     assert sqlcl_show(sqlcl_path, store, "p_nopwd").connect_string == target
 
 
-@QUOTING_XFAIL
 @pytest.mark.parametrize("form", ["descriptor", "parameter"])
 def test_password_update_on_stored_connect_form(
     form: str,
