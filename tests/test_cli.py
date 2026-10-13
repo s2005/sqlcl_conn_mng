@@ -6,9 +6,10 @@ import json
 from pathlib import Path
 
 import pytest
-from pytest_mock import MockerFixture
+from pytest_mock import MockerFixture, MockType
 
 from sqlcl_conn_mng import __version__
+from sqlcl_conn_mng import sqlcl as sq
 from sqlcl_conn_mng.cli import (
     _emit_error,
     _emit_ok,
@@ -464,7 +465,7 @@ def _base(fake_home: Path) -> list[str]:
     return ["--home", str(fake_home), "--sqlcl", "sql-bin"]
 
 
-def _fail_on(bad: str, mocker: MockerFixture, target: str) -> MockerFixture:
+def _fail_on(bad: str, mocker: MockerFixture, target: str) -> MockType:
     """Patch a sqlcl function so it fails for one name and succeeds for the others."""
 
     def fake(runner: object, name: str, *rest: object) -> str:
@@ -472,7 +473,7 @@ def _fail_on(bad: str, mocker: MockerFixture, target: str) -> MockerFixture:
             raise SqlclError(f"boom {name}")
         return f"done {name}"
 
-    return mocker.patch(target, side_effect=fake)  # type: ignore[no-any-return]
+    return mocker.patch(target, side_effect=fake)
 
 
 @pytest.mark.unit
@@ -779,7 +780,7 @@ def _tree(home: Path) -> dict[str, bytes]:
     return {p.relative_to(home).as_posix(): p.read_bytes() for p in home.rglob("*") if p.is_file()}
 
 
-def _ok_run(mocker: MockerFixture) -> object:
+def _ok_run(mocker: MockerFixture) -> MockType:
     return mocker.patch(
         "sqlcl_conn_mng.sqlcl.subprocess.run",
         return_value=mocker.Mock(stdout="Connection created and saved", stderr=""),
@@ -918,8 +919,8 @@ def test_update_password_only_runs_replace_with_stored_values(
     before = _tree(home)
     run = _ok_run(mocker)
     assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR")) == 0
-    assert run.call_count == 1  # type: ignore[attr-defined]
-    call = run.call_args  # type: ignore[attr-defined]
+    assert run.call_count == 1
+    call = run.call_args
     script = call.kwargs["input"]
     assert "connect -save alpha -savepwd -replace" in script
     assert "scott@//h:1521/s" in script
@@ -937,7 +938,7 @@ def test_update_no_save_password_drops_savepwd(
     home = _upd_home(tmp_path)
     run = _ok_run(mocker)
     assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR", "--no-save-password")) == 0
-    script = run.call_args.kwargs["input"]  # type: ignore[attr-defined]
+    script = run.call_args.kwargs["input"]
     assert "-savepwd" not in script
     assert "-replace" in script
 
@@ -949,7 +950,7 @@ def test_update_prompt_password_uses_hidden_prompt(tmp_path: Path, mocker: Mocke
     run = _ok_run(mocker)
     assert main(_upd_argv(home, "--prompt-password")) == 0
     prompt.assert_called_once()
-    assert SECRET in run.call_args.kwargs["input"]  # type: ignore[attr-defined]
+    assert SECRET in run.call_args.kwargs["input"]
 
 
 @pytest.mark.unit
@@ -973,7 +974,7 @@ def test_update_combined_connects_with_new_values_then_writes_file(
         "beta",
     ]
     assert main(_upd_argv(home, *rest)) == 0
-    script = run.call_args.kwargs["input"]  # type: ignore[attr-defined]
+    script = run.call_args.kwargs["input"]
     # the connect runs under the old name with the new user and connect string
     assert "connect -save alpha" in script
     assert "hr@//x:1/y" in script
@@ -1073,7 +1074,7 @@ def test_p1_password_update_derives_target_of_imported_connection(
     write_connection(home, UPD_ID_A, props)
     run = _ok_run(mocker)
     assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR")) == 0
-    assert target in run.call_args.kwargs["input"]  # type: ignore[attr-defined]
+    assert target in run.call_args.kwargs["input"]
 
 
 @pytest.mark.unit
@@ -1131,7 +1132,7 @@ def test_p2b_password_only_update_does_not_need_a_rewritable_file(
     write_connection(home, UPD_ID_A, "# note\n" + UPD_PROPS.format(name="alpha"))
     run = _ok_run(mocker)
     assert main(_upd_argv(home, "--password-env", "FAKE_PWD_VAR")) == 0
-    assert run.call_count == 1  # type: ignore[attr-defined]
+    assert run.call_count == 1
 
 
 _FORMAT_COMMANDS = [
@@ -1525,3 +1526,281 @@ def test_p2_add_json_failing_move_reports_the_persisted_save(
     data = _json_out(capsys)
     assert data["status"] == "error"
     assert data["message"] == ("Connection dev_local saved, but moving it to /a failed: bad folder")
+
+
+# ---- copy ----
+
+COPY_ID_EXISTING = "GGGGGGGGGGGGGGGGGGGGGG"
+
+
+def _copy_argv(fake_home: Path, target: Path, *rest: str) -> list[str]:
+    return ["copy", *_base(fake_home), "--to-home", str(target), *rest]
+
+
+def _no_sqlcl(mocker: MockerFixture) -> None:
+    """Make any SQLcl run fail, so a test proves none happened."""
+    mocker.patch(
+        "sqlcl_conn_mng.sqlcl.SqlclRunner.run", side_effect=AssertionError("SQLcl was run")
+    )
+
+
+def _mock_placement(mocker: MockerFixture) -> None:
+    mocker.patch("sqlcl_conn_mng.sqlcl.add_folder", return_value="added")
+    mocker.patch("sqlcl_conn_mng.sqlcl.move_connection", return_value="moved")
+
+
+@pytest.mark.unit
+def test_copy_help_lists_options(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["copy", "--help"])
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    for option in ("--to-home", "--name", "--filter", "--all", "--format", "--home"):
+        assert option in out
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "rest",
+    [
+        ["--name", "dev_local"],
+        ["--to-home", "t"],
+        ["--to-home", "t", "--name", "dev_local", "--all"],
+        ["--to-home", "t", "--filter", "a*", "--all"],
+    ],
+)
+def test_copy_usage_errors_exit_2(rest: list[str]) -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["copy", "--home", "h", *rest])
+    assert exc.value.code == 2
+
+
+@pytest.mark.unit
+def test_copy_root_connection_runs_no_sqlcl(
+    fake_home: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+) -> None:
+    _no_sqlcl(mocker)
+    target = tmp_path / "target"
+    before = _tree(fake_home)
+    assert main(_copy_argv(fake_home, target, "--name", "root_conn")) == 0
+    assert capsys.readouterr().out == f"Copied 'root_conn' to {target} /\n"
+    copied = ConnectionStore(target).get("root_conn")
+    assert copied is not None
+    assert copied.folder == "/"
+    assert copied.id != "BBBBBBBBBBBBBBBBBBBBBB"
+    wallet = target / "connections" / copied.id / "credentials.sso"
+    assert wallet.read_bytes() == b"fake-wallet-bytes"
+    assert _tree(fake_home) == before
+
+
+@pytest.mark.unit
+def test_copy_nested_connection_adds_folder_then_moves_in_target(
+    fake_home: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+) -> None:
+    target = tmp_path / "target"
+    calls: list[tuple[str, str, str]] = []
+
+    def fake_add(runner: sq.SqlclRunner, folder: str) -> str:
+        calls.append(("add", runner.home, folder))
+        return "added"
+
+    def fake_move(runner: sq.SqlclRunner, name: str, folder: str) -> str:
+        calls.append(("move", runner.home, f"{name} {folder}"))
+        return "moved"
+
+    mocker.patch("sqlcl_conn_mng.sqlcl.add_folder", side_effect=fake_add)
+    mocker.patch("sqlcl_conn_mng.sqlcl.move_connection", side_effect=fake_move)
+    assert main(_copy_argv(fake_home, target, "--name", "dev_local")) == 0
+    assert calls == [
+        ("add", str(target), "/dev/local"),
+        ("move", str(target), "dev_local /dev/local"),
+    ]
+    assert capsys.readouterr().out == f"Copied 'dev_local' to {target} /dev/local\n"
+
+
+@pytest.mark.unit
+def test_copy_skips_add_folder_when_the_target_has_it(
+    fake_home: Path, tmp_path: Path, mocker: MockerFixture
+) -> None:
+    target = tmp_path / "target"
+    (target / "connection_folders").mkdir(parents=True)
+    folders = {"folders": [{"name": "dev", "folders": [{"name": "local", "connections": []}]}]}
+    (target / "connection_folders" / "folders.json").write_text(json.dumps(folders))
+    add = mocker.patch("sqlcl_conn_mng.sqlcl.add_folder")
+    move = mocker.patch("sqlcl_conn_mng.sqlcl.move_connection", return_value="moved")
+    assert main(_copy_argv(fake_home, target, "--name", "dev_local")) == 0
+    add.assert_not_called()
+    assert move.call_args.args[1:] == ("dev_local", "/dev/local")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("failing", ["add_folder", "move_connection"])
+def test_copy_folder_failure_removes_the_copy(
+    fake_home: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+    failing: str,
+) -> None:
+    target = tmp_path / "target"
+    _mock_placement(mocker)
+    mocker.patch(f"sqlcl_conn_mng.sqlcl.{failing}", side_effect=SqlclError("bad folder"))
+    assert main(_copy_argv(fake_home, target, "--filter", "dev_*")) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "[FAIL] dev_local: bad folder",
+        "Summary: 0 ok, 1 failed",
+    ]
+    assert list((target / "connections").iterdir()) == []
+
+
+@pytest.mark.unit
+def test_copy_name_folder_failure_exits_1_and_removes_the_copy(
+    fake_home: Path, tmp_path: Path, mocker: MockerFixture
+) -> None:
+    target = tmp_path / "target"
+    mocker.patch("sqlcl_conn_mng.sqlcl.add_folder", return_value="added")
+    mocker.patch("sqlcl_conn_mng.sqlcl.move_connection", side_effect=SqlclError("boom"))
+    assert main(_copy_argv(fake_home, target, "--name", "dev_local")) == 1
+    assert list((target / "connections").iterdir()) == []
+
+
+@pytest.mark.unit
+def test_copy_refuses_a_name_clash_in_any_letter_case(
+    fake_home: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+) -> None:
+    _no_sqlcl(mocker)
+    target = tmp_path / "target"
+    write_connection(target, COPY_ID_EXISTING, "name=ROOT_CONN\ntype=ORACLE_DATABASE\n")
+    before = _tree(target)
+    assert main(_copy_argv(fake_home, target, "--filter", "root_*")) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        "[FAIL] root_conn: The target store already has a connection named 'ROOT_CONN'",
+        "Summary: 0 ok, 1 failed",
+    ]
+    assert _tree(target) == before
+
+
+@pytest.mark.unit
+def test_copy_clash_does_not_stop_the_rest_of_the_batch(
+    fake_home: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+) -> None:
+    _mock_placement(mocker)
+    target = tmp_path / "target"
+    write_connection(target, COPY_ID_EXISTING, "name=ROOT_CONN\ntype=ORACLE_DATABASE\n")
+    before = _tree(target)
+    assert main(_copy_argv(fake_home, target, "--all")) == 1
+    lines = capsys.readouterr().out.splitlines()
+    assert [line for line in lines if line.startswith("[OK]")] == [
+        "[OK] Prod One",
+        "[OK] dev_local",
+    ]
+    assert [line for line in lines if line.startswith("[FAIL]")] == [
+        "[FAIL] root_conn: The target store already has a connection named 'ROOT_CONN'"
+    ]
+    assert lines[-1] == "Summary: 2 ok, 1 failed"
+    assert {k: v for k, v in _tree(target).items() if k.split("/")[1] == COPY_ID_EXISTING} == before
+    assert sorted(c.name for c in ConnectionStore(target).connections()) == [
+        "Prod One",
+        "ROOT_CONN",
+        "dev_local",
+    ]
+
+
+@pytest.mark.unit
+def test_copy_same_home_exits_1_and_writes_nothing(fake_home: Path, mocker: MockerFixture) -> None:
+    _no_sqlcl(mocker)
+    before = _tree(fake_home)
+    same = str(fake_home / ".." / fake_home.name)
+    assert main(["copy", "--home", str(fake_home), "--to-home", same, "--all"]) == 1
+    assert _tree(fake_home) == before
+
+
+@pytest.mark.unit
+def test_copy_duplicate_name_batch_copies_nothing(
+    fake_home: Path, tmp_path: Path, mocker: MockerFixture
+) -> None:
+    _no_sqlcl(mocker)
+    write_connection(fake_home, "HHHHHHHHHHHHHHHHHHHHHH", "name=root_conn\ntype=ORACLE_DATABASE\n")
+    target = tmp_path / "target"
+    assert main(_copy_argv(fake_home, target, "--all")) == 1
+    assert not target.exists()
+
+
+@pytest.mark.unit
+def test_copy_unknown_name_exits_1(fake_home: Path, tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    assert main(_copy_argv(fake_home, target, "--name", "nope")) == 1
+    assert not target.exists()
+
+
+@pytest.mark.unit
+def test_copy_batch_without_a_match_exits_1(fake_home: Path, tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    assert main(_copy_argv(fake_home, target, "--filter", "zzz*")) == 1
+    assert not target.exists()
+
+
+@pytest.mark.unit
+def test_copy_json_single_result(
+    fake_home: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+) -> None:
+    _no_sqlcl(mocker)
+    target = tmp_path / "target"
+    assert main(_copy_argv(fake_home, target, "--name", "root_conn", "--format", "json")) == 0
+    assert _json_out(capsys) == {
+        "status": "ok",
+        "command": "copy",
+        "message": f"Copied 'root_conn' to {target} /",
+        "name": "root_conn",
+    }
+
+
+@pytest.mark.unit
+def test_copy_json_batch_envelope(
+    fake_home: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+) -> None:
+    _no_sqlcl(mocker)
+    target = tmp_path / "target"
+    argv = _copy_argv(fake_home, target, "--filter", "root_*", "--format", "json")
+    assert main(argv) == 0
+    data = _json_out(capsys)
+    assert (data["status"], data["command"], data["ok"], data["failed"]) == ("ok", "copy", 1, 0)
+    assert data["results"] == [
+        {"name": "root_conn", "status": "ok", "message": f"Copied 'root_conn' to {target} /"}
+    ]
+    # The name is now taken in the target, so the same batch reports it as failed.
+    assert main(argv) == 1
+    data = _json_out(capsys)
+    assert (data["status"], data["ok"], data["failed"]) == ("error", 0, 1)
+
+
+@pytest.mark.unit
+def test_copy_never_prints_wallet_bytes(
+    fake_home: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+) -> None:
+    _mock_placement(mocker)
+    target = tmp_path / "target"
+    assert main(_copy_argv(fake_home, target, "--all", "--log-level", "DEBUG")) == 0
+    captured = capsys.readouterr()
+    assert "fake-wallet-bytes" not in captured.out + captured.err
