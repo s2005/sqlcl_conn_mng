@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -32,10 +34,26 @@ def test_argv_thin_and_thick() -> None:
         "-noupdates",
         "-thin",
         "-home",
-        "store-home",
+        os.path.abspath("store-home"),
         "/nolog",
     ]
     assert "-thin" not in _runner("thick").argv()
+
+
+def _home_arg(runner: sq.SqlclRunner) -> str:
+    argv = runner.argv()
+    return argv[argv.index("-home") + 1]
+
+
+@pytest.mark.unit
+def test_argv_makes_relative_home_absolute() -> None:
+    assert _home_arg(_runner()) == os.path.abspath("store-home")
+
+
+@pytest.mark.unit
+def test_argv_keeps_absolute_home(tmp_path: Path) -> None:
+    runner = sq.SqlclRunner("sql-bin", str(tmp_path), "thin", 30)
+    assert _home_arg(runner) == os.path.abspath(str(tmp_path))
 
 
 @pytest.mark.unit

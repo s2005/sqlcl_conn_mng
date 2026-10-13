@@ -159,3 +159,17 @@ def test_tool_delete(conn_ops_store: BuiltStore, run_cli: RunCli, tmp_path: Path
     result = run_cli(copy, "delete", "--name", "c_nopwd", "--yes")
     assert result.code == 0
     assert "c_nopwd" not in {r["name"] for r in listed(copy, run_cli)}
+
+
+def test_tool_delete_relative_home(
+    conn_ops_store: BuiltStore, run_cli: RunCli, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # SQLcl 25.4.1 doubles a relative -home on its delete path, so the tool must pass it absolute.
+    copy = copy_store(conn_ops_store.home, tmp_path)
+    monkeypatch.chdir(copy.parent)
+    relative = Path(copy.name)
+    result = run_cli(relative, "delete", "--name", "c_nopwd", "--yes")
+    assert result.code == 0
+    assert "Connection c_nopwd has been deleted" in result.stdout
+    assert "SEVERE" not in result.stdout + result.stderr
+    assert "c_nopwd" not in {r["name"] for r in listed(relative, run_cli)}
