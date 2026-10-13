@@ -368,6 +368,8 @@ make db-stop
 
 The workflow `.github/workflows/ci.yml` runs on pull requests, on pushes to `main` and on manual dispatch, on Ubuntu and Windows. Both jobs run `make check`, `make unit`, `make sqlcl` (cached per SQLcl release) and `make integration`. The Ubuntu job also generates a random database password for the run, masks it in the log, and wraps the integration tests in `make db-start` and `make db-stop`, so the saved-password scenarios run there. The Windows runner cannot run the Linux database container, so on Windows those scenarios skip with a reason. The workflow needs no repository secret.
 
+A change that touches only `docs/**` or Markdown files, `README.md` and `SKILL.md` included, skips `ci.yml`. The workflow `.github/workflows/docs.yml` runs instead and lints every Markdown file with `markdownlint-cli2`, using the rules in `.markdownlint-cli2.jsonc`. Run the same check locally with `npx markdownlint-cli2 "**/*.md"`.
+
 ## License
 
 MIT
