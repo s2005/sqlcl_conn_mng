@@ -244,7 +244,7 @@ class ConnectionStore:
         """Copy one connection directory into target under a new id and return that id.
 
         dbtools.properties and, when present, credentials.sso are copied as opaque bytes; the
-        wallet is never opened, decoded or printed. The files go to a staging directory inside
+        wallet is never opened, decoded or printed. The source file permissions are preserved. The files go to a staging directory inside
         the target connections directory and are renamed into place, so a failure leaves no
         partial connection directory. The target home is created when missing. The copy lands
         in the root folder; placing it in a folder is left to SQLcl.
@@ -258,8 +258,10 @@ class ConnectionStore:
         staging = Path(tempfile.mkdtemp(dir=root, prefix=_STAGING_PREFIX))
         try:
             shutil.copyfile(source / PROPERTIES_FILE, staging / PROPERTIES_FILE)
+            shutil.copymode(source / PROPERTIES_FILE, staging / PROPERTIES_FILE)
             if (source / WALLET_FILE).is_file():
                 shutil.copyfile(source / WALLET_FILE, staging / WALLET_FILE)
+                shutil.copymode(source / WALLET_FILE, staging / WALLET_FILE)
             os.replace(staging, root / new_id)
         except BaseException:
             shutil.rmtree(staging, ignore_errors=True)

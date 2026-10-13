@@ -22,7 +22,7 @@ The store investigation (`docs/tasks/sqlcl_jar_store_investigation/findings.md`,
 ### REQ-2: Copy each connection as opaque files under a new id
 
 - Each copy goes to `<to-home>/connections/<new id>/`. The new id is 22 URL-safe characters from 16 random bytes, the rule SQLcl accepts. It never equals an id already present in the target.
-- `dbtools.properties` and, when present, `credentials.sso` are copied byte for byte. The wallet is never opened, decoded, parsed or printed. A source without `credentials.sso` is copied without one.
+- `dbtools.properties` and, when present, `credentials.sso` are copied byte for byte with their file permissions. The wallet is never opened, decoded, parsed or printed. A source without `credentials.sso` is copied without one.
 - The files are written to a staging directory inside `<to-home>/connections/` and renamed into place, so a failed copy leaves no partial connection directory.
 - `<to-home>` and `<to-home>/connections/` are created when missing.
 - The source store is never modified.

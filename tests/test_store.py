@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import re
+import stat
+import sys
 from pathlib import Path
 
 import pytest
@@ -292,6 +295,36 @@ def test_copy_connection_failure_leaves_no_staging_directory(
     target = ConnectionStore(tmp_path / "target")
     mocker.patch("sqlcl_conn_mng.store.shutil.copyfile", side_effect=OSError("disk full"))
     with pytest.raises(OSError, match="disk full"):
+        ConnectionStore(fake_home).copy_connection_to(ID_DEV, target)
+    assert list((target.home / "connections").iterdir()) == []
+
+
+@pytest.mark.unit
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="POSIX permission bits are not meaningful on Windows"
+)
+def test_copy_connection_preserves_file_permissions(fake_home: Path, tmp_path: Path) -> None:
+    src = fake_home / "connections" / ID_DEV
+    (src / "credentials.sso").chmod(0o600)
+    (src / "dbtools.properties").chmod(0o640)
+    target = ConnectionStore(tmp_path / "target")
+    old_umask = os.umask(0o022)
+    try:
+        new_id = ConnectionStore(fake_home).copy_connection_to(ID_DEV, target)
+    finally:
+        os.umask(old_umask)
+    dst = target.home / "connections" / new_id
+    assert stat.S_IMODE((dst / "credentials.sso").stat().st_mode) == 0o600
+    assert stat.S_IMODE((dst / "dbtools.properties").stat().st_mode) == 0o640
+
+
+@pytest.mark.unit
+def test_copy_connection_copymode_failure_leaves_no_directory(
+    fake_home: Path, tmp_path: Path, mocker: MockerFixture
+) -> None:
+    target = ConnectionStore(tmp_path / "target")
+    mocker.patch("sqlcl_conn_mng.store.shutil.copymode", side_effect=OSError("mode denied"))
+    with pytest.raises(OSError, match="mode denied"):
         ConnectionStore(fake_home).copy_connection_to(ID_DEV, target)
     assert list((target.home / "connections").iterdir()) == []
 
