@@ -721,18 +721,22 @@ def _current_connect_string(conn: SavedConnection) -> str:
     """Return the connect string SQLcl needs to reconnect a saved connection.
 
     An imported ORACLE_BASIC connection has no connectionString; its target is in host, port
-    and serviceName, so the easy connect form is built from them.
+    and serviceName, so the easy connect form is built from them. One that names a SID instead
+    of a service gets the host:port:sid form.
     """
     if conn.connect_string:
         return conn.connect_string
     host = conn.extra.get("host", "")
     service = conn.extra.get("serviceName", "")
+    sid = conn.extra.get("sid", "")
+    port = conn.extra.get("port", "")
+    if host and sid and not service:
+        return f"{host}:{port or 1521}:{sid}"
     if not host or not service:
         raise ValueError(
-            f"Connection {conn.name!r} has no connect string and no host and serviceName; "
+            f"Connection {conn.name!r} has no connect string and no host and serviceName or sid; "
             "give --connect-string"
         )
-    port = conn.extra.get("port", "")
     return f"//{host}:{port}/{service}" if port else f"//{host}/{service}"
 
 
