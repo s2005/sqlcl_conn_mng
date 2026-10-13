@@ -24,9 +24,11 @@ Build a throwaway store from the import fixture and run `delete` with a relative
 
 ```bash
 mkdir -p "$TMPDIR/relhome" && cd "$TMPDIR/relhome"
-printf 'connmgr import "%s"\nexit\n' "$(cygpath -m <repo-root>/tests/integration/data/sqldev_export.json)" | sql -S -nohistory -noupdates -home "$(pwd -W)/st" /nolog
+printf 'connmgr import "%s"\nexit\n' "$(cygpath -m <repo-root>/tests/integration/data/sqldev_export.json)" | MSYS_NO_PATHCONV=1 sql -S -nohistory -noupdates -home "$(pwd -W)/st" /nolog
 uv run --project <repo-root> sqlcl-conn-mng delete --name imp1 --yes --home st
 ```
+
+`MSYS_NO_PATHCONV=1` stops Git Bash from rewriting `/nolog` into a Windows path (see `notes_01.md`).
 
 Expected before the fix: exit 1 and a `SEVERE ... validatePermissions` line naming `st\connections\st\connections\<id>`.
 
@@ -86,9 +88,9 @@ The "Defect Reproduces" commands run again after the fix: exit 0 and `Connection
 The feature can be accepted when all items are true:
 
 - [x] AC-1 - relative home becomes absolute in `argv()`, absolute home is kept - verified by: Phase 1 unit tests
-- [ ] AC-2 - `delete` with a relative `--home` exits 0, removes the connection, no `SEVERE` - verified by: `test_tool_delete_relative_home` and the "Defect Reproduces" rerun
+- [x] AC-2 - `delete` with a relative `--home` exits 0, removes the connection, no `SEVERE` - verified by: `test_tool_delete_relative_home` and the "Defect Reproduces" rerun
 - [x] AC-3 - `delete-folder --force` with a relative `--home` exits 0 and removes the folder and its connection - verified by: `test_tool_force_delete_folder_relative_home`
-- [ ] AC-4 - `copy` message prints `--to-home` as given - verified by: existing `copy` tests in `make unit` and `make integration` passing unchanged
-- [ ] AC-5 - `uv run sqlcl-conn-mng --version` prints 0.7.1 - verified by: Phase 3 command
-- [ ] AC-6 - README `--home` row says the path is made absolute - verified by: reading `README.md` and the lint run
-- [ ] AC-7 - `make check`, `make unit` and `make integration` pass - verified by: Linter and Regression Check sections
+- [x] AC-4 - `copy` message prints `--to-home` as given - verified by: existing `copy` tests in `make unit` and `make integration` passing unchanged
+- [x] AC-5 - `uv run sqlcl-conn-mng --version` prints 0.7.1 - verified by: Phase 3 command
+- [x] AC-6 - README `--home` row says the path is made absolute - verified by: reading `README.md` and the lint run
+- [x] AC-7 - `make check`, `make unit` and `make integration` pass - verified by: Linter and Regression Check sections

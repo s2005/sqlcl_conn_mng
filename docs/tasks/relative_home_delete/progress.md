@@ -42,8 +42,8 @@ Requirements: REQ-2, REQ-3
 
 Requirements: REQ-4, REQ-5
 
-- [ ] Bump `pyproject.toml` to 0.7.1 and run `uv lock`
-- [ ] Amend the README `--home` row
-- [ ] `uv run sqlcl-conn-mng --version` prints 0.7.1
-- [ ] README lints clean
-- [ ] Reinstall the global copy, or record why it was skipped
+- [x] Bump `pyproject.toml` to 0.7.1 and run `uv lock`
+- [x] Amend the README `--home` row
+- [x] `uv run sqlcl-conn-mng --version` prints 0.7.1
+- [x] README lints clean
+- [x] Reinstall the global copy, or record why it was skipped: skipped, because `git worktree list` shows other worktrees (`fix/ci-skip-docs`, this branch); reinstall from `main` after merge
