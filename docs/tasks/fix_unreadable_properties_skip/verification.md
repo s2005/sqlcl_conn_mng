@@ -47,13 +47,16 @@ Expected: all pass. The "Defect Present" command now logs one `[WARNING]` naming
 
 ### Phase 3: Documentation And Gate
 
-REQ-4.
+REQ-4, REQ-5.
 
 ```bash
 npx markdownlint-cli2 README.md
+uv run sqlcl-conn-mng --version
 ```
 
-Expected: no issue. Then repeat the SQLcl-built reproduction from `analysis.md` with `MSYS_NO_PATHCONV=1` in Git Bash: `sqlcl-conn-mng list --home <scratch-store>` lists `imp1` and `imp3`, logs the warning with `imp2`'s file path, exits 0.
+Expected: no markdown issue; the version command prints 0.9.3.
+
+Then repeat the SQLcl-built reproduction from `analysis.md` with `MSYS_NO_PATHCONV=1` in Git Bash: `sqlcl-conn-mng list --home <scratch-store>` lists `imp1` and `imp3`, logs the warning with `imp2`'s file path, exits 0.
 
 ### Linter
 
@@ -81,3 +84,4 @@ The feature can be accepted when all items are true:
 - [ ] AC-4 - SQLcl-built reproduction lists the two readable connections and warns with the path - verified by: Phase 3 manual step
 - [ ] AC-5 - README updated and lint clean - verified by: Phase 3 command
 - [ ] AC-6 - `make check` and `make unit` pass - verified by: Linter, Regression Check
+- [ ] AC-7 - Version is 0.9.3 - verified by: Phase 3 command

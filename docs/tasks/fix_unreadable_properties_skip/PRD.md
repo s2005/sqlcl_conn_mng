@@ -6,7 +6,7 @@ When one connection's `dbtools.properties` cannot be parsed, read commands skip 
 
 ## Background
 
-`ConnectionStore.connections` (`src/sqlcl_conn_mng/store.py:160-186`) parses every `dbtools.properties`. A malformed `\u` escape makes `parse_properties` raise `ValueError` (`src/sqlcl_conn_mng/properties.py:54`), which ends the whole loop. `main` reports `Malformed unicode escape in properties text: \u12zz` and exits 1, without saying which of the connections is broken. Every command that lists or selects connections fails the same way. SQLcl 25.4.1 itself crashes on every `connmgr` command against such a store, so the tool is the only place a user can find the broken file. Reproduced on a SQLcl-built store (see `analysis.md`). Found by the test gap review in `docs/tasks/test_gap_coverage/` (finding F3).
+`ConnectionStore.connections` (`src/sqlcl_conn_mng/store.py:160-186`) parses every `dbtools.properties`. A malformed `\u` escape makes `parse_properties` raise `ValueError` (`src/sqlcl_conn_mng/properties.py:54`), which ends the whole loop. `main` reports `Malformed unicode escape in properties text: \u12zz` and exits 1, without saying which of the connections is broken. Every command that lists or selects connections fails the same way. SQLcl 25.4.1 itself crashes on every `connmgr` command against such a store, so the tool is the only place a user can find the broken file. Reproduced on a SQLcl-built store (see `analysis.md`). Found by the test gap review (finding F3).
 
 ## Requirements
 
@@ -26,12 +26,15 @@ When one connection's `dbtools.properties` cannot be parsed, read commands skip 
 
 `README.md` says that a connection whose `dbtools.properties` cannot be parsed is skipped with a warning naming its file, and that SQLcl itself fails on every command until the file is repaired or removed.
 
+### REQ-5: Patch version bump
+
+The project version in `pyproject.toml` (and `uv.lock`) goes from 0.9.2 to 0.9.3, so the fixed release is distinguishable from the defective one. No input parameter changes.
+
 ## Non-Requirements
 
 - `OSError` while reading a file (see `open_questions.md` Q4): the command still fails.
 - Repairing or deleting the broken file.
 - Malformed `folders.json` - task `fix_malformed_folders_json`.
-- No version bump: no input parameter changes.
 
 ## Acceptance Criteria
 
@@ -41,6 +44,7 @@ When one connection's `dbtools.properties` cannot be parsed, read commands skip 
 - **AC-4** - The SQLcl-built reproduction from `analysis.md` lists two of the three connections and logs the warning with the path (REQ-1, REQ-2)
 - **AC-5** - README updated and `markdownlint-cli2` reports no issue (REQ-4)
 - **AC-6** - `make check` and `make unit` pass (REQ-1, REQ-2, REQ-3)
+- **AC-7** - `uv run sqlcl-conn-mng --version` prints 0.9.3 (REQ-5)
 
 ## Deliverables
 
@@ -50,3 +54,5 @@ When one connection's `dbtools.properties` cannot be parsed, read commands skip 
 | tests/test_store.py | Update |
 | tests/test_cli.py | Update |
 | README.md | Update |
+| pyproject.toml | Update |
+| uv.lock | Update |
