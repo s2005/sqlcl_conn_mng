@@ -25,23 +25,23 @@
 
 Requirements: REQ-1, REQ-2
 
-- [ ] Run the pre-implementation baseline from `verification.md`
-- [ ] `test_non_list_folder_values_raise_store_error` (parametrized)
-- [ ] `test_null_folders_json_exits_1_without_traceback`
-- [ ] Confirm the new tests fail with `TypeError` or the misleading message
+- [x] Run the pre-implementation baseline from `verification.md`
+- [x] `test_non_list_folder_values_raise_store_error` (parametrized)
+- [x] `test_null_folders_json_exits_1_without_traceback`
+- [x] Confirm the new tests fail with `TypeError` or the misleading message
 
 ## Phase 2: Type Check In The Store
 
 Requirements: REQ-1, REQ-2
 
-- [ ] `_list_value` helper in `store.py`
-- [ ] Use it in `folders()` and `_build_folder`
-- [ ] Phase 1 tests pass
+- [x] `_list_value` helper in `store.py`
+- [x] Use it in `folders()` and `_build_folder`
+- [x] Phase 1 tests pass
 
 ## Phase 3: Documentation And Gate
 
 Requirements: REQ-3
 
-- [ ] README "Store format" bullet
-- [ ] `make check`, `make unit`, markdownlint
-- [ ] SQLcl-built reproduction prints the error and no traceback
+- [x] README "Store format" bullet
+- [x] `make check`, `make unit`, markdownlint
+- [x] SQLcl-built reproduction prints the error and no traceback

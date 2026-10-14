@@ -1394,6 +1394,23 @@ def _json_out(capsys: pytest.CaptureFixture[str]) -> dict[str, object]:
 
 
 @pytest.mark.unit
+def test_null_folders_json_exits_1_without_traceback(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    home = tmp_path / "store"
+    props = "name=dev\nconnectionString=//h\\:1521/s\nuserName=scott\n"
+    write_connection(home, ID_DEV, props)
+    (home / "connection_folders").mkdir(parents=True)
+    folders = {"folders": [{"name": "dev", "connections": None}]}
+    (home / "connection_folders" / "folders.json").write_text(json.dumps(folders))
+    assert main(["list", "--home", str(home), "--format", "json"]) == 1
+    out = _json_out(capsys)
+    assert out["status"] == "error"
+    assert out["command"] == "list"
+    assert str(out["message"]).startswith("Malformed folders.json:")
+
+
+@pytest.mark.unit
 def test_add_json_and_table(
     fake_home: Path, capsys: pytest.CaptureFixture[str], mocker: MockerFixture
 ) -> None:
