@@ -310,7 +310,7 @@ Summary of the SQLcl 25.4.1 store, observed empirically (the format is not docum
 - `<home>/connections/<id>/` holds one saved connection. `<id>` is an opaque 22-character string (`[A-Za-z0-9_-]`) and is not derived from the name, so connections are looked up by the `name` property.
 - Each connection directory has `dbtools.properties` and `credentials.sso`. The latter is an Oracle auto-login wallet and always exists, with or without a saved password, so its size says nothing about password presence. Use `show --check-password` for that.
 - `dbtools.properties` is a Java properties file with the keys `name`, `type`, `connectionString` and `userName`. It uses Java escaping, for example `//host\:1521/svc`. Unknown keys are kept in `extra`. `update` rewrites this file with the same escaping (UTF-8, LF endings, no header), which SQLcl reads back; `copy` copies it unchanged.
-- Folders live in `<home>/connection_folders/folders.json` as nested objects with `name`, `connections` (connection ids) and `folders`. A connection not referenced by any folder is at the root `/`. The file may be absent.
+- Folders live in `<home>/connection_folders/folders.json` as nested objects with `name`, `connections` (connection ids) and `folders`. A connection not referenced by any folder is at the root `/`. The file may be absent. A `folders.json` that is not valid JSON, or whose `folders` or `connections` value is present but not a list, is reported as `Malformed folders.json: ...` and the command exits 1.
 - SQLcl always exits with status 0, even on failure, so this tool detects success from SQLcl's output text.
 
 ## Exit codes

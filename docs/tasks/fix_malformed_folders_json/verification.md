@@ -75,9 +75,9 @@ Expected: all pass.
 
 The feature can be accepted when all items are true:
 
-- [ ] AC-1 - Non-list cases raise `StoreError` naming key and folder - verified by: Phase 2 command
-- [ ] AC-2 - Absent key and invalid JSON tests still pass - verified by: Regression Check
-- [ ] AC-3 - CLI exits 1 with the JSON error object, no traceback - verified by: Phase 2 command
-- [ ] AC-4 - SQLcl-built reproduction shows the error and no traceback - verified by: Phase 3 manual step
-- [ ] AC-5 - README "Store format" updated and lint clean - verified by: Phase 3 command
-- [ ] AC-6 - `make check` and `make unit` pass - verified by: Linter, Regression Check
+- [x] AC-1 - Non-list cases raise `StoreError` naming key and folder - verified by: Phase 2 command
+- [x] AC-2 - Absent key and invalid JSON tests still pass - verified by: Regression Check
+- [x] AC-3 - CLI exits 1 with the JSON error object, no traceback - verified by: Phase 2 command
+- [x] AC-4 - SQLcl-built reproduction shows the error and no traceback - verified by: Phase 3 manual step
+- [x] AC-5 - README "Store format" updated and lint clean - verified by: Phase 3 command
+- [x] AC-6 - `make check` and `make unit` pass - verified by: Linter, Regression Check
