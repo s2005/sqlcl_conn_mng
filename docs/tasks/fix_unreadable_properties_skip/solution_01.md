@@ -6,7 +6,7 @@ Replace the PRD non-requirement "No version bump" with a requirement (REQ-5) tha
 
 ## Why it beats 02
 
-The project rule is that every bug-fix PR bumps the patch version. Solution 02 leaves the fixed release indistinguishable from the defective one.
+The project rule is that a change to code under `src/` bumps the version (patch for a fix); docs-only changes do not. This task changes `src/sqlcl_conn_mng/store.py`. Solution 02 leaves the fixed release indistinguishable from the defective one.
 
 ## Resolves
 

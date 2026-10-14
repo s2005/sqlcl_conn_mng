@@ -28,7 +28,7 @@ When one connection's `dbtools.properties` cannot be parsed, read commands skip 
 
 ### REQ-5: Patch version bump
 
-The project version in `pyproject.toml` (and `uv.lock`) goes from 0.9.2 to 0.9.3, so the fixed release is distinguishable from the defective one. No input parameter changes.
+The project version in `pyproject.toml` (and `uv.lock`) goes from 0.9.2 to 0.9.3, because the task changes code under `src/`; the fixed release is then distinguishable from the defective one. No input parameter changes.
 
 ## Non-Requirements
 
