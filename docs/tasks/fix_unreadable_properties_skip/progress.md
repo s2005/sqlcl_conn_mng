@@ -45,7 +45,7 @@ Requirements: REQ-1, REQ-2, REQ-3
 
 Requirements: REQ-4, REQ-5
 
-- [ ] README "Store format" bullet
+- [x] README "Store format" bullet
 - [ ] Bump version to 0.9.3 in `pyproject.toml`, `uv lock`
 - [ ] `make check`, `make unit`, markdownlint
 - [ ] SQLcl-built reproduction lists the readable connections and logs the warning
