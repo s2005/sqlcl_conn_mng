@@ -2179,7 +2179,6 @@ def _add_unparseable(home: Path) -> None:
 
 
 @pytest.mark.unit
-@pytest.mark.xfail(strict=True, reason="skip-and-warn not implemented yet")
 def test_list_skips_unparseable_connection(
     fake_home: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -2191,7 +2190,6 @@ def test_list_skips_unparseable_connection(
 
 
 @pytest.mark.unit
-@pytest.mark.xfail(strict=True, reason="skip-and-warn not implemented yet")
 def test_folders_and_export_skip_unparseable_connection(
     fake_home: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -36,10 +36,10 @@ Requirements: REQ-1, REQ-2, REQ-3
 
 Requirements: REQ-1, REQ-2, REQ-3
 
-- [ ] Module logger and `_skipped` set in `store.py`
-- [ ] `try/except ValueError` in `connections()`, one warning per id
-- [ ] Docstrings updated
-- [ ] Phase 1 tests pass
+- [x] Module logger and `_skipped` set in `store.py`
+- [x] `try/except ValueError` in `connections()`, one warning per id
+- [x] Docstrings updated
+- [x] Phase 1 tests pass (xfail markers removed; 263 passed, 1 skipped)
 
 ## Phase 3: Documentation And Gate
 

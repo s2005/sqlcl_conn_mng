@@ -396,7 +396,6 @@ def _add_unparseable(home: Path) -> Path:
 
 
 @pytest.mark.unit
-@pytest.mark.xfail(strict=True, reason="skip-and-warn not implemented yet")
 def test_unparseable_properties_are_skipped_with_one_warning(
     fake_home: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

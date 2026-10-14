@@ -78,9 +78,9 @@ Expected: all pass.
 
 The feature can be accepted when all items are true:
 
-- [ ] AC-1 - Broken connection skipped, one warning with id and path across repeated calls - verified by: Phase 2 command
-- [ ] AC-2 - `list`, `folders`, `export` work on the readable connections, valid JSON, exit 0 - verified by: Phase 2 command
-- [ ] AC-3 - Direct reads of the broken id still raise, file unchanged - verified by: Phase 2 command
+- [x] AC-1 - Broken connection skipped, one warning with id and path across repeated calls - verified by: Phase 2 command
+- [x] AC-2 - `list`, `folders`, `export` work on the readable connections, valid JSON, exit 0 - verified by: Phase 2 command
+- [x] AC-3 - Direct reads of the broken id still raise, file unchanged - verified by: Phase 2 command
 - [ ] AC-4 - SQLcl-built reproduction lists the two readable connections and warns with the path - verified by: Phase 3 manual step
 - [ ] AC-5 - README updated and lint clean - verified by: Phase 3 command
 - [ ] AC-6 - `make check` and `make unit` pass - verified by: Linter, Regression Check
