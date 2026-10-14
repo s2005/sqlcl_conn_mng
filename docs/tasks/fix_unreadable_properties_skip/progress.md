@@ -25,12 +25,12 @@
 
 Requirements: REQ-1, REQ-2, REQ-3
 
-- [ ] Run the pre-implementation baseline from `verification.md`
-- [ ] `test_unparseable_properties_are_skipped_with_one_warning`
-- [ ] `test_direct_reads_of_unparseable_file_still_raise`
-- [ ] `test_list_skips_unparseable_connection`
-- [ ] `test_folders_and_export_skip_unparseable_connection`
-- [ ] Confirm the skip tests fail with the `Malformed unicode escape` error
+- [x] Run the pre-implementation baseline from `verification.md` (`make check` pass; `make unit` 324 passed, 1 skipped, 167 deselected; Defect Present command prints the Malformed unicode escape error and `rc 1`)
+- [x] `test_unparseable_properties_are_skipped_with_one_warning`
+- [x] `test_direct_reads_of_unparseable_file_still_raise`
+- [x] `test_list_skips_unparseable_connection`
+- [x] `test_folders_and_export_skip_unparseable_connection`
+- [x] Confirm the skip tests fail (committed as strict xfail; marker removed in Phase 2) with the `Malformed unicode escape` error
 
 ## Phase 2: Skip And Warn In The Store
 

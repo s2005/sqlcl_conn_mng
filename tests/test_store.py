@@ -380,3 +380,46 @@ def test_remove_connection_dir_refuses_a_non_id(fake_home: Path, bad: str) -> No
     with pytest.raises(StoreError, match="Not a connection id"):
         ConnectionStore(fake_home).remove_connection_dir(bad)
     assert (fake_home / "connections").is_dir()
+
+
+# A malformed unicode escape that parse_properties rejects; the backslash is built explicitly.
+BAD_PROPS = b"name=bad" + bytes([92]) + b"u12zz\n"
+ID_BAD = "DDDDDDDDDDDDDDDDDDDDDD"
+
+
+def _add_unparseable(home: Path) -> Path:
+    # Add a connection whose properties cannot be parsed and return its properties file.
+    write_connection(home, ID_BAD, "")
+    props = home / "connections" / ID_BAD / "dbtools.properties"
+    props.write_bytes(BAD_PROPS)
+    return props
+
+
+@pytest.mark.unit
+@pytest.mark.xfail(strict=True, reason="skip-and-warn not implemented yet")
+def test_unparseable_properties_are_skipped_with_one_warning(
+    fake_home: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    props = _add_unparseable(fake_home)
+    store = ConnectionStore(fake_home)
+    with caplog.at_level("WARNING"):
+        first = store.connections()
+        second = store.connections()
+    assert len(first) == 3
+    assert len(second) == 3
+    assert ID_BAD not in [c.id for c in first]
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1
+    assert ID_BAD in warnings[0].getMessage()
+    assert str(props) in warnings[0].getMessage()
+
+
+@pytest.mark.unit
+def test_direct_reads_of_unparseable_file_still_raise(fake_home: Path) -> None:
+    props = _add_unparseable(fake_home)
+    store = ConnectionStore(fake_home)
+    with pytest.raises(ValueError, match="Malformed unicode escape"):
+        store.read_properties(ID_BAD)
+    with pytest.raises(ValueError, match="Malformed unicode escape"):
+        store.update_properties(ID_BAD, {"name": "x"})
+    assert props.read_bytes() == BAD_PROPS
