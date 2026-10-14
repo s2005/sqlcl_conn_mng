@@ -2166,3 +2166,38 @@ def test_correct_folder_logs_no_warning(
     assert main(["list", "--home", str(fake_home), "--folder", "/dev"]) == 0
     capsys.readouterr()
     assert "Git Bash" not in caplog.text
+
+
+# Connections whose properties cannot be parsed are skipped (backslash built explicitly).
+ID_BAD = "DDDDDDDDDDDDDDDDDDDDDD"
+
+
+def _add_unparseable(home: Path) -> None:
+    write_connection(home, ID_BAD, "")
+    props = home / "connections" / ID_BAD / "dbtools.properties"
+    props.write_bytes(b"name=bad" + bytes([92]) + b"u12zz\n")
+
+
+@pytest.mark.unit
+def test_list_skips_unparseable_connection(
+    fake_home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _add_unparseable(fake_home)
+    argv = ["list", "--home", str(fake_home), "--format", "json"]
+    assert main(argv) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [c["name"] for c in data] == ["Prod One", "dev_local", "root_conn"]
+
+
+@pytest.mark.unit
+def test_folders_and_export_skip_unparseable_connection(
+    fake_home: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _add_unparseable(fake_home)
+    assert main(["folders", "--home", str(fake_home), "--format", "json"]) == 0
+    folders = json.loads(capsys.readouterr().out)
+    assert folders["root_connections"] == ["root_conn"]
+    target = tmp_path / "out.json"
+    assert main(["export", "--home", str(fake_home), "--output", str(target)]) == 0
+    names = [c["name"] for c in json.loads(target.read_text(encoding="utf-8"))["connections"]]
+    assert sorted(names) == ["Prod One", "dev_local", "root_conn"]

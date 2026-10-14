@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import contextlib
 import json
+import logging
 import os
 import re
 import secrets
@@ -16,6 +17,8 @@ from typing import Any
 
 from sqlcl_conn_mng.models import ROOT_FOLDER, Folder, SavedConnection
 from sqlcl_conn_mng.properties import format_properties, parse_properties
+
+logger = logging.getLogger(__name__)
 
 HOME_ENV_VAR = "SQLCL_CONN_HOME"
 PROPERTIES_FILE = "dbtools.properties"
@@ -139,10 +142,15 @@ class ConnectionStore:
     Everything is read-only except update_properties, which rewrites one dbtools.properties,
     and copy_connection_to / remove_connection_dir, which add and remove whole connection
     directories. The wallet is never opened and folders.json is never written.
+
+    A connection whose dbtools.properties cannot be parsed is left out of connections() with one
+    warning per id and instance; read_properties and update_properties on its id still raise.
     """
 
     def __init__(self, home: Path) -> None:
         self.home = home
+        # Ids already warned about, so repeated reads log each broken file once.
+        self._skipped: set[str] = set()
 
     def folders(self) -> list[Folder]:
         """Return the top-level folders (empty when folders.json is absent)."""
@@ -166,7 +174,7 @@ class ConnectionStore:
         return mapping
 
     def connections(self) -> list[SavedConnection]:
-        """Return all saved connections sorted by name."""
+        """Return all saved connections sorted by name, skipping those whose properties cannot be parsed."""
         root = self.home / CONNECTIONS_DIR
         if not root.is_dir():
             return []
@@ -178,7 +186,15 @@ class ConnectionStore:
                 continue
             if not props_file.is_file():
                 continue
-            props = parse_properties(_read_text(props_file))
+            try:
+                props = parse_properties(_read_text(props_file))
+            except ValueError as exc:
+                if entry.name not in self._skipped:
+                    self._skipped.add(entry.name)
+                    logger.warning(
+                        "Skipping connection %s: cannot parse %s: %s", entry.name, props_file, exc
+                    )
+                continue
             result.append(
                 SavedConnection(
                     id=entry.name,
