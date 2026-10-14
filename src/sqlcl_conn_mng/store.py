@@ -71,12 +71,20 @@ def _read_text(path: Path) -> str:
         return data.decode("latin-1")
 
 
+def _list_value(node: dict[str, Any], key: str, where: str) -> list[Any]:
+    """Return the list under ``key`` (empty when absent) or raise StoreError."""
+    value = node.get(key, [])
+    if not isinstance(value, list):
+        raise StoreError(f"Malformed folders.json: {key!r} of {where} is not a list")
+    return value
+
+
 def _build_folder(node: Any, parent: str) -> Folder:
     if not isinstance(node, dict) or not isinstance(node.get("name"), str):
         raise StoreError("Malformed folders.json: folder entry without a name")
     path = parent.rstrip("/") + "/" + node["name"]
-    connections = [c for c in node.get("connections", []) if isinstance(c, str)]
-    children = [_build_folder(child, path) for child in node.get("folders", [])]
+    connections = [c for c in _list_value(node, "connections", path) if isinstance(c, str)]
+    children = [_build_folder(child, path) for child in _list_value(node, "folders", path)]
     return Folder(name=node["name"], path=path, connections=connections, folders=children)
 
 
@@ -147,7 +155,7 @@ class ConnectionStore:
             raise StoreError(f"Malformed folders.json: {exc}") from exc
         if not isinstance(data, dict):
             raise StoreError("Malformed folders.json: top level is not an object")
-        return [_build_folder(node, "") for node in data.get("folders", [])]
+        return [_build_folder(node, "") for node in _list_value(data, "folders", "the top level")]
 
     def folder_paths(self) -> dict[str, str]:
         """Map connection id to its folder path; unreferenced ids are absent."""

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import stat
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -74,6 +76,33 @@ def test_malformed_folders_json(fake_home: Path) -> None:
     (fake_home / "connection_folders" / "folders.json").write_text("{nope", encoding="utf-8")
     with pytest.raises(StoreError):
         ConnectionStore(fake_home).folders()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("value", [None, 5, True, "x"])
+@pytest.mark.parametrize(
+    ("key", "where", "build"),
+    [
+        ("folders", "the top level", lambda v: {"folders": v}),
+        ("folders", "/dev", lambda v: {"folders": [{"name": "dev", "folders": v}]}),
+        ("connections", "/dev", lambda v: {"folders": [{"name": "dev", "connections": v}]}),
+    ],
+    ids=["top-folders", "nested-folders", "connections"],
+)
+def test_non_list_folder_values_raise_store_error(
+    tmp_path: Path, key: str, where: str, build: Callable[[object], object], value: object
+) -> None:
+    home = tmp_path / "store"
+    (home / "connection_folders").mkdir(parents=True)
+    (home / "connection_folders" / "folders.json").write_text(
+        json.dumps(build(value)), encoding="utf-8"
+    )
+    with pytest.raises(StoreError) as info:
+        ConnectionStore(home).folders()
+    message = str(info.value)
+    assert message.startswith("Malformed folders.json:")
+    assert repr(key) in message
+    assert where in message
 
 
 @pytest.mark.unit
