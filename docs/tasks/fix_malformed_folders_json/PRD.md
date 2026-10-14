@@ -34,7 +34,6 @@ The "Store format" section of `README.md` says that a `folders.json` that is not
 - Catching `TypeError` in `main` as a general safety net.
 - Validating folder names, duplicate folder paths or connection ids that do not exist.
 - Unreadable `dbtools.properties` files - task `fix_unreadable_properties_skip`.
-- No version bump: no input parameter changes.
 
 ## Acceptance Criteria
 
@@ -53,3 +52,4 @@ The "Store format" section of `README.md` says that a `folders.json` that is not
 | tests/test_store.py | Update |
 | tests/test_cli.py | Update |
 | README.md | Update |
+| pyproject.toml, uv.lock | Update (patch bump to 0.9.2, so the fixed release is distinguishable from the defective one) |
